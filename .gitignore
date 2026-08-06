@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Secrets
+.env
+
+# Databases (Phase 4+)
+*.db
+*.sqlite3
+
+# Vector store data (Phase 6+)
+/chroma_data/
+
+# Node / frontend (Phase 13+)
+node_modules/
+frontend/dist/
+frontend/build/
+
+# Electron (Phase 14+)
+desktop/dist/
+desktop/out/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test / lint caches
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
