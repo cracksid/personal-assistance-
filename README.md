@@ -19,6 +19,41 @@ pip install -r backend/requirements-dev.txt
 copy .env.example .env
 ```
 
+## Choosing a model (Phase 5)
+
+Two providers ship today. Switching between them is one line in `.env` —
+`LLM_PROVIDER` — and no code changes, because both sit behind the
+`LLMProvider` abstract base class.
+
+### Option A — Claude (cloud, paid, best quality)
+
+```
+LLM_PROVIDER=anthropic
+LLM_MODEL=claude-opus-5      # or claude-haiku-4-5 for ~5x cheaper
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Get a key at https://console.anthropic.com/settings/keys (requires prepaid
+credit, $5 minimum). Never paste a key into a chat, an issue, or a commit —
+if one leaks, delete it in the console and make a new one.
+
+### Option B — Ollama (local, free, private)
+
+```
+LLM_PROVIDER=ollama
+OLLAMA_MODEL=llama3.2
+```
+
+Install Ollama from https://ollama.com, then download a model:
+
+```bash
+ollama pull llama3.2
+```
+
+`llama3.2` is ~2GB and runs acceptably on a CPU. Nothing leaves your machine
+and nothing is billed, but replies are slower than Claude and local models are
+noticeably weaker at tool use.
+
 ## Run the server
 
 ```bash

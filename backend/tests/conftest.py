@@ -1,15 +1,15 @@
 """
 Shared pytest fixtures.
 
-conftest.py is a special filename: pytest imports it automatically and
-makes any fixture defined here available to every test file in this
-folder, without importing anything.
+conftest.py is a special filename: pytest imports it automatically and makes
+any fixture defined here available to every test file in this folder, without
+importing anything.
 """
 
 from collections.abc import Generator
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -18,22 +18,31 @@ from app.db.base import Base
 
 
 @pytest.fixture
-def db_session() -> Generator[Session, None, None]:
+def anyio_backend() -> str:
     """
-    A database session backed by a throwaway in-memory database.
+    Tells the anyio pytest plugin which async library to run async tests on.
 
-    A test asks for this by taking `db_session` as a parameter; pytest
-    matches the name to this fixture and passes the yielded value in.
+    Tests marked @pytest.mark.anyio need an event loop to run in; this picks
+    asyncio, the one in Python's standard library. Without this fixture those
+    tests are skipped rather than run.
+    """
+    return "asyncio"
 
-    Tests must never touch the real jarvis.db -- they would pollute real
-    data, and their results would depend on whatever happened to be in it
-    already. "sqlite://" with no path means "in memory": the database
-    exists only in RAM and disappears when the engine is disposed, so
-    every test starts from a guaranteed-clean schema.
 
-    StaticPool forces every connection to reuse the *same* in-memory
-    database. Without it, SQLAlchemy's pool could hand out a second
-    connection, which for in-memory SQLite means a second, empty database.
+@pytest.fixture
+def db_engine() -> Generator[Engine, None, None]:
+    """
+    A throwaway in-memory database with the schema already created.
+
+    Tests must never touch the real jarvis.db -- they would pollute real data,
+    and their results would depend on whatever happened to be in it already.
+    "sqlite://" with no path means "in memory": the database exists only in
+    RAM and disappears when the engine is disposed, so every test starts from
+    a guaranteed-clean schema.
+
+    StaticPool forces every connection to reuse the *same* in-memory database.
+    Without it, SQLAlchemy's pool could hand out a second connection, which
+    for in-memory SQLite means a second, empty database.
     """
     engine = create_engine(
         "sqlite://",
@@ -41,16 +50,28 @@ def db_session() -> Generator[Session, None, None]:
         poolclass=StaticPool,
     )
 
-    # create_all() builds the tables directly from the models. Tests use
-    # this rather than running migrations because it's much faster and
-    # keeps tests independent of migration history. `alembic check`
-    # (see README) is what verifies models and migrations still agree.
+    # create_all() builds the tables directly from the models. Tests use this
+    # rather than running migrations because it's much faster and keeps tests
+    # independent of migration history. `alembic check` (see README) is what
+    # verifies models and migrations still agree.
     Base.metadata.create_all(engine)
+    try:
+        yield engine
+    finally:
+        engine.dispose()
 
-    TestSession = sessionmaker(bind=engine, expire_on_commit=False)
+
+@pytest.fixture
+def db_session(db_engine: Engine) -> Generator[Session, None, None]:
+    """
+    A database session backed by the throwaway engine above.
+
+    A test asks for this by taking `db_session` as a parameter; pytest matches
+    the name to this fixture and passes the yielded value in.
+    """
+    TestSession = sessionmaker(bind=db_engine, expire_on_commit=False)
     session = TestSession()
     try:
         yield session
     finally:
         session.close()
-        engine.dispose()

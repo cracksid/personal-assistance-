@@ -1,45 +1,76 @@
 """
 WebSocket endpoint for chat streaming.
 
-REST (the /health endpoint) is request-in, response-out: the client asks
-once, the server answers once, done. A chat conversation with an LLM needs
-something different -- the server should be able to push text to the
-client as it's generated (token by token), and the client should be able
-to send new messages at any time, all over one long-lived connection.
-That's what a WebSocket is: a persistent two-way pipe between client and
-server, instead of one-shot request/response.
+A WebSocket is a persistent two-way pipe between client and server, unlike
+REST's one-request-one-response. That matters here because the server pushes
+the model's reply out piece by piece as it is generated, instead of making
+the user wait for the whole thing.
 
-There's no AI here yet -- Phase 5 builds the actual agent loop. For now
-this endpoint only proves the plumbing works: it accepts a connection,
-echoes back whatever text it receives, and logs connect/disconnect. Phase
-5 will replace the echo with a real call into the agent loop.
+Message protocol -- every frame the server sends is a JSON object with a
+"type" field, so the client can tell chunks apart from completion and errors:
+
+    {"type": "chunk", "text": "Hel"}   one piece of the reply
+    {"type": "done"}                   the reply is complete
+    {"type": "error", "message": "..."} something went wrong
+
+The client sends plain text: whatever the user typed.
 """
 
 import logging
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_agent
+from app.core.agent import Agent
+from app.db import crud
+from app.db.session import get_db
+from app.providers.base import LLMProviderError
 
 router = APIRouter(tags=["chat"])
 logger = logging.getLogger(__name__)
 
 
 @router.websocket("/ws/chat")
-async def chat_websocket(websocket: WebSocket) -> None:
-    # accept() completes the WebSocket "handshake" -- until this is called,
-    # the connection is still just a pending HTTP request.
+async def chat_websocket(
+    websocket: WebSocket,
+    db: Session = Depends(get_db),
+    agent: Agent = Depends(get_agent),
+) -> None:
     await websocket.accept()
     logger.info("WebSocket connected")
 
+    # One conversation per connection. Messages within a connection share
+    # history, so the assistant remembers what was said earlier in this chat.
+    # Reconnecting starts fresh -- persistent cross-session memory is Phase 6.
+    owner = crud.get_or_create_owner(db)
+    conversation = crud.create_conversation(db, owner)
+
     try:
-        # This loop runs once per message, for as long as the client stays
-        # connected. `await websocket.receive_text()` pauses this function
-        # (without blocking the rest of the server) until the client sends
-        # something.
         while True:
-            message = await websocket.receive_text()
-            logger.info("Received: %s", message)
-            await websocket.send_text(f"echo: {message}")
+            user_text = await websocket.receive_text()
+            logger.info("User message (%s chars)", len(user_text))
+
+            try:
+                async for chunk in agent.respond(db, conversation.id, user_text):
+                    await websocket.send_json({"type": "chunk", "text": chunk})
+                await websocket.send_json({"type": "done"})
+
+            except LLMProviderError as exc:
+                # An expected failure -- no API key, rate limit, network down.
+                # The message is written for a human, and never contains the
+                # API key, so it is safe to show.
+                logger.warning("Provider error: %s", exc)
+                await websocket.send_json({"type": "error", "message": str(exc)})
+
+            except Exception:
+                # An actual bug. Log the traceback server-side; tell the client
+                # something generic, the same rule as the HTTP error handlers.
+                logger.error("Unexpected error handling message", exc_info=True)
+                await websocket.send_json(
+                    {"type": "error", "message": "Internal server error"}
+                )
+
     except WebSocketDisconnect:
-        # Raised automatically when the client closes the connection --
-        # this is the normal way this loop ends, not an error.
+        # The normal way this loop ends: the client closed the tab.
         logger.info("WebSocket disconnected")

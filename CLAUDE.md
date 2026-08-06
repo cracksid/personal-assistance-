@@ -131,6 +131,9 @@ deployment/     Dockerfile, compose, GitHub Actions
 
 ## Current status
 
-Phase 4 complete. Phase 5 not started.
+Phase 5 complete. Agent loop streams; two providers behind the ABC
+(Anthropic + Ollama), switchable via LLM_PROVIDER in .env. Tool calling and
+the confirmation gate are deferred to Phase 9, when tools exist.
+Phase 6 not started.
 
 Update this line at the end of every phase.
