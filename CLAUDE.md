@@ -131,6 +131,6 @@ deployment/     Dockerfile, compose, GitHub Actions
 
 ## Current status
 
-Phase 2 complete. Phase 3 not started.
+Phase 3 complete. Phase 4 not started.
 
 Update this line at the end of every phase.
