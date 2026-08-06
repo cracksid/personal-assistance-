@@ -7,7 +7,16 @@ os.environ directly -- always go through the `settings` object this module
 creates, so there's exactly one place that knows where config comes from.
 """
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# __file__ is this file's own path. .resolve() makes it absolute, then each
+# .parent goes up one folder: config.py -> app/ -> backend/
+# Using pathlib (not string concatenation) is a hard rule in CLAUDE.md --
+# it gets Windows path separators right without any manual escaping.
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+DEFAULT_DB_PATH = BACKEND_DIR / "jarvis.db"
 
 
 class Settings(BaseSettings):
@@ -22,6 +31,13 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"  # bind to localhost only -- see CLAUDE.md auth decision
     port: int = 8000
     log_level: str = "INFO"
+
+    # SQLAlchemy connection string. The "sqlite:///" prefix picks the database
+    # driver; everything after it is the path to the file. .as_posix() writes
+    # the path with forward slashes, which is the format URLs expect even on
+    # Windows. Swapping to Postgres later means changing only this one line
+    # (see the locked decisions in CLAUDE.md).
+    database_url: str = f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
 
     # This nested class tells pydantic-settings *how* to load the values above:
     # read a file named ".env" in the project root, using UTF-8 text encoding.
