@@ -8,13 +8,16 @@ importing anything.
 
 from collections.abc import Generator
 
+import chromadb
 import pytest
+from chromadb.config import Settings as ChromaSettings
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db import models  # noqa: F401  (imported so Base.metadata knows the tables)
 from app.db.base import Base
+from app.memory.store import MemoryStore
 
 
 @pytest.fixture
@@ -75,3 +78,23 @@ def db_session(db_engine: Engine) -> Generator[Session, None, None]:
         yield session
     finally:
         session.close()
+
+
+@pytest.fixture
+def memory_store() -> MemoryStore:
+    """
+    A memory store backed by an in-memory Chroma index.
+
+    EphemeralClient keeps everything in RAM and discards it, so tests never
+    read or write the real chroma_data/ directory on disk.
+
+    The reset() call is load-bearing: Chroma caches client instances, so two
+    EphemeralClient() calls with the same settings hand back the SAME
+    in-memory instance. Without the reset, facts stored by one test are still
+    there in the next one, and tests pass or fail depending on their order.
+    """
+    client = chromadb.EphemeralClient(
+        settings=ChromaSettings(anonymized_telemetry=False, allow_reset=True)
+    )
+    client.reset()
+    return MemoryStore(chroma_client=client)

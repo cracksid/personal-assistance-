@@ -51,6 +51,9 @@ class User(Base):
     conversations: Mapped[list["Conversation"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    facts: Mapped[list["Fact"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Conversation(Base):
@@ -97,6 +100,45 @@ class Message(Base):
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
+
+
+class Fact(Base):
+    """
+    One durable thing worth remembering about the user.
+
+    Facts are long-term memory: they outlive the conversation they were
+    learned in, which is what separates them from Messages. "Sid prefers
+    sounddevice over PyAudio" stays true next week; "what's the weather?"
+    does not.
+
+    This table is the source of truth. The Chroma vector index is a derived
+    search structure built from these rows and can be rebuilt from them.
+    """
+
+    __tablename__ = "facts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+    # The fact itself, written as a plain sentence -- that's what gets
+    # embedded for semantic search and what gets shown to the model.
+    content: Mapped[str] = mapped_column(Text)
+
+    # Rough category: "identity", "preference", "project", or "other".
+    # A plain string rather than a database enum, for the same reason as
+    # Message.role -- SQLite has no real enum, and new kinds shouldn't
+    # need a migration.
+    kind: Mapped[str] = mapped_column(String(30), default="other")
+
+    # Provenance: which conversation this was learned from. Nullable because
+    # a fact may be entered directly, and because the conversation may later
+    # be deleted while the fact remains true.
+    source_conversation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("conversations.id"), default=None
+    )
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+    user: Mapped["User"] = relationship(back_populates="facts")
 
 
 class AuditLog(Base):

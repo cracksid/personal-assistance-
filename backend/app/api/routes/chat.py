@@ -40,11 +40,11 @@ async def chat_websocket(
     await websocket.accept()
     logger.info("WebSocket connected")
 
-    # One conversation per connection. Messages within a connection share
-    # history, so the assistant remembers what was said earlier in this chat.
-    # Reconnecting starts fresh -- persistent cross-session memory is Phase 6.
+    # Resume the most recent conversation rather than starting a new one, so
+    # closing the tab no longer wipes short-term context. Long-term memory
+    # (the facts table) is separate and survives regardless.
     owner = crud.get_or_create_owner(db)
-    conversation = crud.create_conversation(db, owner)
+    conversation = crud.get_or_create_active_conversation(db, owner)
 
     try:
         while True:
@@ -52,9 +52,16 @@ async def chat_websocket(
             logger.info("User message (%s chars)", len(user_text))
 
             try:
-                async for chunk in agent.respond(db, conversation.id, user_text):
+                async for chunk in agent.respond(
+                    db, owner.id, conversation.id, user_text
+                ):
                     await websocket.send_json({"type": "chunk", "text": chunk})
                 await websocket.send_json({"type": "done"})
+
+                # Fact extraction happens after "done" is sent, so the second
+                # model call it makes never delays the user's reply. It
+                # swallows its own errors -- see Agent.remember.
+                await agent.remember(db, owner.id, conversation.id)
 
             except LLMProviderError as exc:
                 # An expected failure -- no API key, rate limit, network down.

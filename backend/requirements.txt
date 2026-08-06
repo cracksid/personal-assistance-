@@ -8,3 +8,6 @@ alembic==1.19.0
 anthropic==0.120.2
 # Used directly by the Ollama adapter (Anthropic's SDK also depends on it).
 httpx==0.28.1
+# Embedded vector database for long-term memory. Heavy (pulls onnxruntime and
+# friends, ~300MB) but runs fully local with no server to manage.
+chromadb==1.5.9

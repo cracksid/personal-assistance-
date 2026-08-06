@@ -131,9 +131,16 @@ deployment/     Dockerfile, compose, GitHub Actions
 
 ## Current status
 
-Phase 5 complete. Agent loop streams; two providers behind the ABC
-(Anthropic + Ollama), switchable via LLM_PROVIDER in .env. Tool calling and
-the confirmation gate are deferred to Phase 9, when tools exist.
-Phase 6 not started.
+Phase 6 complete. Agent loop streams; two providers behind the ABC
+(Anthropic + Ollama), switchable via LLM_PROVIDER in .env. Memory is live:
+conversations resume across reconnects, facts are extracted after each turn
+into SQLite, and Chroma retrieves them by meaning. Tool calling and the
+confirmation gate are deferred to Phase 9, when tools exist.
+
+Known limitation: fact extraction quality tracks model size. llama3.2 (3B)
+is inconsistent -- the same exchange can yield facts on one run and nothing
+on the next. Switch LLM_PROVIDER to anthropic for reliable extraction.
+
+Phase 7 not started.
 
 Update this line at the end of every phase.

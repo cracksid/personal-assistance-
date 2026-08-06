@@ -94,3 +94,43 @@ python -m alembic history   # list all migrations
 
 To start over from an empty database, delete `backend/jarvis.db` and run
 `alembic upgrade head` again.
+
+## Memory (Phase 6)
+
+Two layers, with different lifetimes:
+
+- **Short-term** — the recent messages of a conversation. A connection resumes
+  the most recent conversation, so closing the tab no longer wipes context.
+- **Long-term** — the `facts` table, plus a Chroma vector index that finds
+  facts by *meaning*. "What do I use for sound?" retrieves "prefers
+  sounddevice over PyAudio" despite sharing no words.
+
+After each exchange the model is asked what was worth remembering. That runs
+*after* the reply is streamed, so it never delays an answer, and it swallows
+its own failures — a bad extraction costs a forgotten fact, never a broken
+conversation.
+
+Inspect what JARVIS knows about you:
+
+```bash
+python -c "import sqlite3; [print(r) for r in sqlite3.connect('jarvis.db').execute('SELECT kind, content FROM facts')]"
+```
+
+Duplicates are prevented at the source: before extracting, JARVIS retrieves
+the facts it already holds on that topic and tells the model not to restate
+them. Filtering duplicates *after* the fact was tried and rejected — measured
+on real data, reworded duplicates sat 0.23–0.29 apart in embedding space
+while "prefers dark mode" and "prefers light mode" sat 0.13 apart, so any
+threshold that caught the duplicates would also have merged opposites.
+
+**Two operational notes:**
+
+1. **One process at a time owns `chroma_data/`.** Chroma is embedded, not a
+   server: a running JARVIS will not see facts written by a separate script
+   until it restarts.
+2. **Extraction quality tracks model size.** On llama3.2 (3B) the same
+   exchange can produce facts on one run and nothing on the next. Set
+   `LLM_PROVIDER=anthropic` if you want it reliable.
+
+`chroma_data/` is derived data — it can be deleted and rebuilt from the
+`facts` table via `MemoryStore.rebuild_index()`.

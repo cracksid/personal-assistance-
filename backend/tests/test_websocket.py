@@ -14,13 +14,13 @@ from collections.abc import AsyncIterator, Generator
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session
 
 from app.api.deps import get_agent
 from app.core.agent import Agent
 from app.db.session import get_db
 from app.main import app
+from app.memory.store import MemoryStore
 from app.providers.base import ChatMessage, LLMProvider, LLMProviderError
 from tests.test_agent import FakeProvider
 
@@ -35,18 +35,19 @@ class FailingProvider(LLMProvider):
         yield ""  # unreachable, but its presence is what makes this a generator
 
 
-def _client_with(provider: LLMProvider, db_engine: Engine) -> Generator[TestClient, None, None]:
-    TestSession = sessionmaker(bind=db_engine, expire_on_commit=False)
-
+def _client_with(
+    provider: LLMProvider, db_session: Session, memory_store: MemoryStore
+) -> Generator[TestClient, None, None]:
     def override_get_db() -> Generator[Session, None, None]:
-        db = TestSession()
-        try:
-            yield db
-        finally:
-            db.close()
+        # Hand out the session the fixture owns, and do NOT close it here.
+        # Closing per-request raced with the engine being disposed at
+        # teardown, producing "Cannot operate on a closed database" warnings
+        # from a generator finalised late by the garbage collector. Letting
+        # the db_session fixture own the lifecycle removes the race.
+        yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[get_agent] = lambda: Agent(provider)
+    app.dependency_overrides[get_agent] = lambda: Agent(provider, memory_store)
     try:
         yield TestClient(app)
     finally:
@@ -56,13 +57,17 @@ def _client_with(provider: LLMProvider, db_engine: Engine) -> Generator[TestClie
 
 
 @pytest.fixture
-def client(db_engine: Engine) -> Generator[TestClient, None, None]:
-    yield from _client_with(FakeProvider(["Hel", "lo"]), db_engine)
+def client(
+    db_session: Session, memory_store: MemoryStore
+) -> Generator[TestClient, None, None]:
+    yield from _client_with(FakeProvider(["Hel", "lo"]), db_session, memory_store)
 
 
 @pytest.fixture
-def failing_client(db_engine: Engine) -> Generator[TestClient, None, None]:
-    yield from _client_with(FailingProvider(), db_engine)
+def failing_client(
+    db_session: Session, memory_store: MemoryStore
+) -> Generator[TestClient, None, None]:
+    yield from _client_with(FailingProvider(), db_session, memory_store)
 
 
 def test_websocket_streams_chunks_then_done(client: TestClient):

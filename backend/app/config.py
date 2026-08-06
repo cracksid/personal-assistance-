@@ -75,6 +75,15 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2"
 
+    # --- Memory ------------------------------------------------------------
+    # Where Chroma keeps the vector index on disk, alongside jarvis.db.
+    # Gitignored -- it is derived data, rebuildable from the facts table.
+    chroma_dir: str = str(BACKEND_DIR / "chroma_data")
+
+    # How many remembered facts to pull into the prompt each turn. Every fact
+    # costs tokens, so this is a deliberate cap rather than "everything".
+    memory_search_limit: int = 5
+
     # This tells pydantic-settings *how* to load the values above: read the
     # .env file at the absolute path computed at the top of this module, using
     # UTF-8 text encoding. If a variable isn't set there or in the real

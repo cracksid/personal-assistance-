@@ -43,6 +43,41 @@ def create_conversation(db: Session, user: User) -> Conversation:
     return conversation
 
 
+def get_or_create_active_conversation(db: Session, user: User) -> Conversation:
+    """
+    Resume the most recent conversation, or start one if there is none.
+
+    This is what makes short-term memory survive closing the tab: before
+    Phase 6 every connection created a fresh conversation, so reconnecting
+    meant the assistant had forgotten the last thing you said.
+
+    Long-term memory (the facts table) is separate and survives regardless --
+    it is not tied to any conversation.
+    """
+    latest = db.scalars(
+        select(Conversation)
+        .where(Conversation.user_id == user.id)
+        .order_by(Conversation.id.desc())
+        .limit(1)
+    ).first()
+    if latest is not None:
+        return latest
+    return create_conversation(db, user)
+
+
+def get_last_exchange(db: Session, conversation_id: int) -> tuple[str, str] | None:
+    """
+    Return the most recent (user message, assistant reply) pair.
+
+    Returns None unless the last two messages are exactly that pair -- so a
+    turn that failed partway through is never fed to the fact extractor.
+    """
+    recent = get_recent_messages(db, conversation_id, limit=2)
+    if len(recent) == 2 and recent[0].role == "user" and recent[1].role == "assistant":
+        return recent[0].content, recent[1].content
+    return None
+
+
 def add_message(db: Session, conversation_id: int, role: str, content: str) -> Message:
     """Append one message to a conversation."""
     message = Message(conversation_id=conversation_id, role=role, content=content)

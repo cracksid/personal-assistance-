@@ -13,8 +13,9 @@ venv/
 *.db
 *.sqlite3
 
-# Vector store data (Phase 6+)
-/chroma_data/
+# Vector store data (Phase 6+). Not anchored to the repo root: the store
+# lives next to jarvis.db in backend/.
+chroma_data/
 
 # Node / frontend (Phase 13+)
 node_modules/
