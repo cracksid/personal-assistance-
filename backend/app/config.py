@@ -75,6 +75,35 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2"
 
+    # --- Speech to text ----------------------------------------------------
+    stt_provider: str = "whisper"
+
+    # Whisper model size: tiny | base | small | medium | large-v3.
+    # "small" is the accuracy/speed sweet spot without a GPU. Downloaded
+    # automatically on first use (~485MB) and cached afterwards.
+    stt_model: str = "small"
+
+    # "cpu" or "cuda". int8 quantisation roughly halves memory and speeds up
+    # CPU inference for a small accuracy cost -- the right trade on a laptop.
+    stt_device: str = "cpu"
+    stt_compute_type: str = "int8"
+
+    # Hallucination guards. Whisper invents text from silence, so a
+    # transcript is discarded when the model itself signals low confidence.
+    # no_speech_prob near 1.0 means "this is silence"; avg_logprob strongly
+    # negative means the model was guessing.
+    stt_no_speech_threshold: float = 0.6
+    stt_logprob_threshold: float = -1.0
+
+    # --- Text to speech ----------------------------------------------------
+    tts_provider: str = "piper"
+
+    # Voice model name. Download others with:
+    #   python -m piper.download_voices <name> --download-dir backend/models/piper
+    # Browse them at https://rhasspy.github.io/piper-samples/
+    tts_voice: str = "en_GB-alan-medium"
+    tts_model_dir: str = str(BACKEND_DIR / "models" / "piper")
+
     # --- Memory ------------------------------------------------------------
     # Where Chroma keeps the vector index on disk, alongside jarvis.db.
     # Gitignored -- it is derived data, rebuildable from the facts table.

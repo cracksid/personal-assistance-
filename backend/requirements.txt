@@ -11,3 +11,8 @@ httpx==0.28.1
 # Embedded vector database for long-term memory. Heavy (pulls onnxruntime and
 # friends, ~300MB) but runs fully local with no server to manage.
 chromadb==1.5.9
+
+# Voice (Phase 7). faster-whisper runs Whisper on CPU via CTranslate2;
+# piper-tts is a local neural voice. Both fully offline after first download.
+faster-whisper==1.2.1
+piper-tts==1.6.0

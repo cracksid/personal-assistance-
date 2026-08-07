@@ -37,3 +37,6 @@ Thumbs.db
 .ruff_cache/
 htmlcov/
 .coverage
+
+# Downloaded model weights (Phase 7+). Large, and re-downloadable.
+backend/models/

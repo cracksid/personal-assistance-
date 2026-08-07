@@ -95,6 +95,48 @@ python -m alembic history   # list all migrations
 To start over from an empty database, delete `backend/jarvis.db` and run
 `alembic upgrade head` again.
 
+## Voice (Phase 7a)
+
+Speech in and out, both running locally — no API keys, nothing leaves the
+machine.
+
+- **Speech to text** — `faster-whisper`, model size set by `STT_MODEL`
+  (default `small`, ~485MB, downloaded automatically on first use).
+- **Text to speech** — Piper, a local neural voice. Default `en_GB-alan-medium`
+  because JARVIS is canonically British. Download another with:
+
+  ```bash
+  python -m piper.download_voices en_US-lessac-medium --download-dir models/piper
+  ```
+
+  then set `TTS_VOICE` in `.env`. Browse voices at
+  https://rhasspy.github.io/piper-samples/
+
+Two endpoints:
+
+```bash
+# Text -> speech (writes a playable WAV)
+curl -X POST http://127.0.0.1:8000/voice/speak \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Good evening, Sid."}' -o out.wav
+```
+
+```bash
+# Speech -> text
+curl -X POST http://127.0.0.1:8000/voice/transcribe \
+  --data-binary @out.wav -H "Content-Type: audio/wav"
+```
+
+**Hallucination guard.** Whisper invents fluent text from silence — "Thank
+you for watching!" from a silent clip is the classic. JARVIS runs voice
+activity detection first, then discards any transcript where Whisper's own
+confidence signals (`no_speech_prob`, `avg_logprob`) say it was not really
+hearing speech. Silence returns an empty string, not a phantom command.
+
+**Measured on a 4-core CPU with no GPU:** roughly 2x realtime — a 2-second
+clip takes about 4 seconds to transcribe. Drop `STT_MODEL` to `base` if that
+is too slow; accuracy on names and technical terms suffers noticeably.
+
 ## Memory (Phase 6)
 
 Two layers, with different lifetimes:

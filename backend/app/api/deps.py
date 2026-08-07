@@ -8,7 +8,12 @@ app.dependency_overrides without touching route code.
 
 from app.core.agent import Agent
 from app.memory.store import MemoryStore
-from app.providers.factory import get_llm_provider
+from app.providers.factory import (
+    get_llm_provider,
+    get_stt_provider as build_stt_provider,
+    get_tts_provider as build_tts_provider,
+)
+from app.providers.speech import STTProvider, TTSProvider
 
 # Built once and reused. Chroma opens files on disk and loads an embedding
 # model into memory, so constructing a new store for every WebSocket
@@ -37,3 +42,26 @@ def get_agent() -> Agent:
     never learns which one it is.
     """
     return Agent(get_llm_provider(), get_memory_store())
+
+
+# Speech engines are cached for the same reason as the memory store, only
+# more so: each holds hundreds of megabytes of model weights in memory.
+# Rebuilding one per request would reload them every time.
+_stt_provider: STTProvider | None = None
+_tts_provider: TTSProvider | None = None
+
+
+def get_stt() -> STTProvider:
+    """Return the shared speech-to-text engine, creating it on first use."""
+    global _stt_provider
+    if _stt_provider is None:
+        _stt_provider = build_stt_provider()
+    return _stt_provider
+
+
+def get_tts() -> TTSProvider:
+    """Return the shared text-to-speech engine, creating it on first use."""
+    global _tts_provider
+    if _tts_provider is None:
+        _tts_provider = build_tts_provider()
+    return _tts_provider

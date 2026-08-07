@@ -141,6 +141,12 @@ Known limitation: fact extraction quality tracks model size. llama3.2 (3B)
 is inconsistent -- the same exchange can yield facts on one run and nothing
 on the next. Switch LLM_PROVIDER to anthropic for reliable extraction.
 
-Phase 7 not started.
+Phase 7a complete: STTProvider and TTSProvider behind ABCs, faster-whisper
+and Piper adapters, POST /voice/transcribe and /voice/speak. Whisper
+hallucinations are filtered via VAD plus no_speech_prob / avg_logprob.
+Measured ~2x realtime transcription on 4 CPU cores.
+
+Phase 7b not started: audio capture (sounddevice), push-to-talk,
+"hey jarvis" wake word via openWakeWord.
 
 Update this line at the end of every phase.
