@@ -175,12 +175,21 @@ class MemoryStore:
         relevant facts):
 
             statement matching a stored fact ......... 0.34
-            QUESTION matching a stored fact .......... 0.52 - 0.60
-            ---------------- decision boundary ----------------
-            question about something unrelated ....... 0.81 - 0.96
+            QUESTION matching a stored fact .......... 0.52 - 0.75
+            ---------------- decision boundary: 0.78 ----------
+            question about something unrelated ....... 0.81 - 1.02
 
-        The gap between 0.60 and 0.81 is wide and clean, so the cutoff sits
-        at 0.7. It must also stay above the 0.23 - 0.29 range where reworded
+        These bands very nearly touch, so the cutoff is a genuine
+        precision/recall tradeoff rather than a clean separation. An earlier
+        value of 0.7 looked safe on a smaller sample and then dropped a
+        real match: "when should I schedule my practice sessions?" put "the
+        user works best late at night" at 0.751 -- nearest by a wide margin
+        over the next fact at 0.877, but past the cutoff. Ranking was right,
+        the threshold was wrong.
+
+        0.78 classifies every case measured so far correctly, with roughly
+        0.03 of margin on each side. Expect to revisit it as the fact store
+        grows. It must also stay above the 0.23 - 0.29 range where reworded
         duplicates live, so potential duplicates still reach the extractor.
 
         Returns plain strings because that is all the caller needs -- the

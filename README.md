@@ -125,9 +125,11 @@ threshold that caught the duplicates would also have merged opposites.
 
 Retrieval filters by *relevance*, not just rank. Chroma returns the nearest N
 facts whether or not any are related, so a small fact store would otherwise
-return everything for every question. `MEMORY_RELEVANCE_CUTOFF` (default 0.7
-cosine distance) sits in the measured gap between relevant matches (0.34–0.60)
-and unrelated ones (0.81–0.96).
+return everything for every question. `MEMORY_RELEVANCE_CUTOFF` (default 0.78
+cosine distance) sits in the measured gap between relevant matches (0.34–0.75)
+and unrelated ones (0.81–1.02). Those bands nearly touch, so it is a genuine
+precision/recall dial — raise it if JARVIS forgets things it should know,
+lower it if it drags in irrelevant facts.
 
 **Two operational notes:**
 

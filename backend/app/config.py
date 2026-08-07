@@ -89,7 +89,7 @@ class Settings(BaseSettings):
     # every query, which measurably breaks fact extraction. Sits in the gap
     # between relevant and irrelevant measured on real queries -- see
     # memory/store.py -> search().
-    memory_relevance_cutoff: float = 0.7
+    memory_relevance_cutoff: float = 0.78
 
     # This tells pydantic-settings *how* to load the values above: read the
     # .env file at the absolute path computed at the top of this module, using
