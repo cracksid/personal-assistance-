@@ -132,7 +132,7 @@ async def test_remembered_facts_are_injected_into_the_system_prompt(
     agent = Agent(provider, memory_store)
 
     async for _ in agent.respond(
-        db_session, owner.id, conv.id, "what colour scheme should I set up?"
+        db_session, owner.id, conv.id, "what theme should I use in my editor?"
     ):
         pass
 

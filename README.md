@@ -123,6 +123,12 @@ on real data, reworded duplicates sat 0.23–0.29 apart in embedding space
 while "prefers dark mode" and "prefers light mode" sat 0.13 apart, so any
 threshold that caught the duplicates would also have merged opposites.
 
+Retrieval filters by *relevance*, not just rank. Chroma returns the nearest N
+facts whether or not any are related, so a small fact store would otherwise
+return everything for every question. `MEMORY_RELEVANCE_CUTOFF` (default 0.7
+cosine distance) sits in the measured gap between relevant matches (0.34–0.60)
+and unrelated ones (0.81–0.96).
+
 **Two operational notes:**
 
 1. **One process at a time owns `chroma_data/`.** Chroma is embedded, not a

@@ -90,3 +90,23 @@ def test_rebuild_index_restores_search_after_the_index_is_lost(
     assert memory_store.search(owner_id, "where does the user live?") == [
         "The user lives in Bangalore"
     ]
+
+
+def test_irrelevant_facts_are_filtered_out_not_just_ranked(
+    db_session, memory_store, owner_id
+):
+    """
+    Chroma returns the nearest N whether or not any of them are related, so
+    with a small store every query used to return everything. That measurably
+    broke fact extraction: shown facts about guitars while reading about
+    Python, llama3.2 stopped extracting entirely.
+
+    A generous limit must still return nothing when nothing is relevant.
+    """
+    memory_store.remember(db_session, owner_id, "The user plays the guitar")
+    memory_store.remember(db_session, owner_id, "The user prefers sounddevice")
+
+    assert memory_store.search(owner_id, "what instrument do I play?", 10) == [
+        "The user plays the guitar"
+    ]
+    assert memory_store.search(owner_id, "what should I cook for dinner?", 10) == []

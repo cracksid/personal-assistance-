@@ -62,7 +62,37 @@ class MemoryStore:
                 # this assistant's entire premise is that it runs locally.
                 settings=ChromaSettings(anonymized_telemetry=False),
             )
-        self._collection = chroma_client.get_or_create_collection(COLLECTION_NAME)
+        self._collection = self._open_collection(chroma_client)
+
+    @staticmethod
+    def _open_collection(client: chromadb.ClientAPI):
+        """
+        Open the facts collection, forcing cosine distance.
+
+        Chroma defaults to squared-L2, whose numbers depend on vector
+        magnitude and so have no stable meaning across texts. Cosine distance
+        runs 0 (identical) to 2 (opposite) regardless of length, which is what
+        makes a relevance cutoff possible at all -- see search().
+
+        A collection created with the old metric is thrown away and recreated
+        empty. That is safe: the index is derived data, and the startup hook
+        in main.py rebuilds it from the facts table.
+        """
+        try:
+            existing = client.get_collection(COLLECTION_NAME)
+            if (existing.metadata or {}).get("hnsw:space") == "cosine":
+                return existing
+            logger.warning(
+                "Memory index uses the wrong distance metric; recreating it. "
+                "It will be rebuilt from the facts table on next startup."
+            )
+            client.delete_collection(COLLECTION_NAME)
+        except Exception:
+            pass  # no collection yet -- the normal first-run path
+
+        return client.create_collection(
+            COLLECTION_NAME, metadata={"hnsw:space": "cosine"}
+        )
 
     def remember(
         self,
@@ -130,10 +160,31 @@ class MemoryStore:
 
     def search(self, user_id: int, query: str, limit: int | None = None) -> list[str]:
         """
-        Return the facts most similar in meaning to `query`, best match first.
+        Return the facts relevant to `query`, best match first.
 
-        Returns plain strings because that is all the caller needs -- the text
-        goes straight into the prompt.
+        RELEVANCE, NOT JUST RANK. Chroma returns the nearest N whether or not
+        any of them are actually related, so with a small fact store every
+        query used to return everything. That is worse than useless for the
+        fact extractor: shown facts about guitars while reading about Python,
+        llama3.2 stopped extracting entirely (measured -- 2 facts became 0).
+
+        Cosine distances measured against the real fact store, using the
+        kind of queries that actually arrive (questions, not statements --
+        questions sit noticeably further away, which is why an earlier cutoff
+        calibrated on statement-to-statement distances wrongly filtered out
+        relevant facts):
+
+            statement matching a stored fact ......... 0.34
+            QUESTION matching a stored fact .......... 0.52 - 0.60
+            ---------------- decision boundary ----------------
+            question about something unrelated ....... 0.81 - 0.96
+
+        The gap between 0.60 and 0.81 is wide and clean, so the cutoff sits
+        at 0.7. It must also stay above the 0.23 - 0.29 range where reworded
+        duplicates live, so potential duplicates still reach the extractor.
+
+        Returns plain strings because that is all the caller needs -- the
+        text goes straight into a prompt.
         """
         if limit is None:
             limit = settings.memory_search_limit
@@ -145,6 +196,7 @@ class MemoryStore:
                 # Scoped to this user. Single-user today, but filtering now
                 # means multi-user later is data, not a rewrite.
                 where={"user_id": user_id},
+                include=["documents", "distances"],
             )
         except Exception:
             # Memory is an enhancement, never a hard dependency. A broken
@@ -154,7 +206,13 @@ class MemoryStore:
 
         # Chroma returns one result list per query text; we only sent one.
         documents = (result.get("documents") or [[]])[0]
-        return list(documents)
+        distances = (result.get("distances") or [[]])[0]
+
+        return [
+            document
+            for document, distance in zip(documents, distances)
+            if distance <= settings.memory_relevance_cutoff
+        ]
 
     def count(self) -> int:
         """How many facts are currently in the vector index."""

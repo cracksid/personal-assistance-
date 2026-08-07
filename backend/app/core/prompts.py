@@ -46,7 +46,9 @@ def build_system_prompt(facts: list[str]) -> str:
 # small model, a demonstrated rule beats a stated one every time.
 EXTRACTION_PROMPT = """You extract durable facts about the user from a conversation.
 
-Look ONLY at what the user said about themselves.
+Look ONLY at what the user said about themselves. Ignore how the assistant \
+replied. A fact still counts when the assistant already acknowledged it, \
+agreed with it, or said it would act on it.
 
 ALWAYS extract when the user states: their name, where they live, their job \
 or studies, a tool or library they use or prefer, something they are \
@@ -78,7 +80,13 @@ Example 3
 User: What time is it in Tokyo?
 Assistant: It's 3pm there.
 Response:
-[]"""
+[]
+
+Example 4 -- the assistant acknowledging a fact does NOT make it stale
+User: I work best late at night.
+Assistant: Understood, I'll be here whenever you're working.
+Response:
+[{"content": "The user works best late at night", "kind": "preference"}]"""
 
 
 def build_extraction_prompt(
@@ -101,12 +109,13 @@ def build_extraction_prompt(
     if known_facts:
         already = "\n".join(f"- {fact}" for fact in known_facts)
         sections.append(
-            "Already known about this user. Do NOT report any of these again, "
-            "and do NOT report a reworded version of them:\n"
+            "Already stored about this user. Do NOT report any of these again, "
+            "and do NOT report a reworded version of them. This list is the "
+            "ONLY thing that makes a fact stale:\n"
             f"{already}"
         )
     sections.append(
-        "Extract only NEW durable facts from this conversation.\n\n"
+        "Extract durable facts from this conversation.\n\n"
         f"User: {user_text}\n"
         f"Assistant: {assistant_text}"
     )

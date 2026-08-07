@@ -84,6 +84,13 @@ class Settings(BaseSettings):
     # costs tokens, so this is a deliberate cap rather than "everything".
     memory_search_limit: int = 5
 
+    # Maximum cosine distance for a fact to count as relevant (0 = identical,
+    # 2 = opposite). Without this, a small fact store returns every fact for
+    # every query, which measurably breaks fact extraction. Sits in the gap
+    # between relevant and irrelevant measured on real queries -- see
+    # memory/store.py -> search().
+    memory_relevance_cutoff: float = 0.7
+
     # This tells pydantic-settings *how* to load the values above: read the
     # .env file at the absolute path computed at the top of this module, using
     # UTF-8 text encoding. If a variable isn't set there or in the real

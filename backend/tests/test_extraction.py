@@ -83,8 +83,8 @@ def test_known_facts_are_shown_to_the_extractor():
     )
 
     assert "The user prefers SoundDevice" in prompt
-    assert "Already known" in prompt
-    assert "NEW" in prompt
+    assert "Already stored" in prompt
+    assert "Do NOT report any of these again" in prompt
 
 
 def test_prompt_omits_the_known_section_when_nothing_is_known():
@@ -92,4 +92,24 @@ def test_prompt_omits_the_known_section_when_nothing_is_known():
 
     prompt = build_extraction_prompt("hi", "hello", known_facts=[])
 
-    assert "Already known" not in prompt
+    assert "Already stored" not in prompt
+
+
+def test_prompt_does_not_call_facts_stale_just_because_they_were_acknowledged():
+    """
+    Regression test for a real failure. An earlier prompt said "extract only
+    NEW facts", and llama3.2 read "new" as "not already acknowledged in this
+    conversation" -- so any fact the assistant replied to was dropped. It
+    explained itself: "the assistant responded by acknowledging it, making no
+    new durable fact extraction possible." Extraction went to 0 for 6 runs.
+
+    The word "new" must therefore never appear unqualified, and the prompt
+    must say outright that the assistant's reply is irrelevant.
+    """
+    from app.core.prompts import EXTRACTION_PROMPT, build_extraction_prompt
+
+    assert "Ignore how the assistant" in EXTRACTION_PROMPT
+    assert "already acknowledged" in EXTRACTION_PROMPT
+
+    prompt = build_extraction_prompt("I use vim", "Noted.", known_facts=None)
+    assert "only NEW" not in prompt
