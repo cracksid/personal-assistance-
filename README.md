@@ -112,17 +112,31 @@ machine.
   then set `TTS_VOICE` in `.env`. Browse voices at
   https://rhasspy.github.io/piper-samples/
 
-Two endpoints:
+Two endpoints. **On Windows use PowerShell's `Invoke-RestMethod`, not `curl`** —
+PowerShell aliases `curl` to `Invoke-WebRequest`, and even `curl.exe` has its
+quotes mangled by PowerShell 5.1's native-argument handling, so a JSON body
+arrives corrupted and the server returns a 422 you then save as a ".wav".
+
+```powershell
+# Text -> speech (writes a playable WAV)
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/voice/speak" -Method Post `
+  -ContentType "application/json" `
+  -Body '{"text":"Good evening, Sid."}' -OutFile out.wav
+```
+
+```powershell
+# Speech -> text
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/voice/transcribe" -Method Post `
+  -ContentType "audio/wav" -InFile out.wav
+```
+
+On macOS or Linux, the equivalents with real curl:
 
 ```bash
-# Text -> speech (writes a playable WAV)
 curl -X POST http://127.0.0.1:8000/voice/speak \
   -H "Content-Type: application/json" \
   -d '{"text":"Good evening, Sid."}' -o out.wav
-```
 
-```bash
-# Speech -> text
 curl -X POST http://127.0.0.1:8000/voice/transcribe \
   --data-binary @out.wav -H "Content-Type: audio/wav"
 ```
