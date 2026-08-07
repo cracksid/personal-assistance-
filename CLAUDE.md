@@ -153,6 +153,16 @@ because capturing a microphone is an interface concern, and it imports
 nothing from backend/app -- proving the public API is enough to drive the
 whole assistant, which Phase 13's UI will also need.
 
-Phase 8 not started.
+Phase 8 complete: VisionProvider and OCRProvider behind ABCs (Anthropic +
+Ollama vision, RapidOCR), screen capture via mss, and /vision endpoints.
+VisionProvider is async and OCRProvider is sync, following the same rule as
+elsewhere: network waits are async, local computation is not.
+
+Measured on this hardware: OCR reads a real screenshot in 4.5s locally and
+free; moondream takes ~20s and is too weak for screenshots (it called a
+desktop "irc"). Use OCR for screen text and Claude for genuine image
+understanding.
+
+Phase 9 not started.
 
 Update this line at the end of every phase.

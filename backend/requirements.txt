@@ -16,3 +16,10 @@ chromadb==1.5.9
 # piper-tts is a local neural voice. Both fully offline after first download.
 faster-whisper==1.2.1
 piper-tts==1.6.0
+
+# Vision (Phase 8). mss captures the screen; pillow handles image encoding
+# and scaling; rapidocr runs OCR on the onnxruntime already installed for
+# the memory index (no Tesseract binary to install separately).
+mss==10.2.0
+pillow==12.3.0
+rapidocr-onnxruntime==1.2.3

@@ -95,6 +95,43 @@ python -m alembic history   # list all migrations
 To start over from an empty database, delete `backend/jarvis.db` and run
 `alembic upgrade head` again.
 
+## Vision (Phase 8)
+
+Screenshots, image understanding, and OCR.
+
+```powershell
+# Capture the screen
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/vision/screenshot" -OutFile screen.png
+
+# Read the text on it (local, free, fast)
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/vision/ocr" -Method Post `
+  -ContentType "image/png" -InFile screen.png
+
+# Ask a model what is on screen (capture + analyse in one call)
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/vision/screen?prompt=What+app+is+open?" -Method Post
+```
+
+**Which tool for which job — measured, not guessed:**
+
+| Task | Use | Measured |
+|---|---|---|
+| Read text on screen | `/vision/ocr` | 38 lines of a real screenshot in 4.5s, local and free |
+| Understand an image | `/vision/describe` with `VISION_PROVIDER=anthropic` | fast, accurate, ~1–2¢ per image |
+| Understand an image, offline | `VISION_PROVIDER=ollama` | ~20s per image, and weak — moondream described a desktop as "irc" |
+
+The honest conclusion: for **screen text**, OCR beats every vision model on
+speed, cost and accuracy. Reach for a vision model only when you need
+*meaning* — a diagram, a photo, a chart. And for that, the local option is
+currently a poor substitute for Claude.
+
+Screen capture takes ~0.08s and images are scaled to 1568px on the long edge
+before analysis, since vision models bill by size and gain nothing beyond it.
+
+**Privacy note:** `/vision/screenshot` captures whatever is on your display,
+including anything private. With `VISION_PROVIDER=anthropic` that image is
+sent to Anthropic. `VISION_PROVIDER=ollama` and `/vision/ocr` both stay on
+your machine.
+
 ## Voice (Phase 7a)
 
 Speech in and out, both running locally — no API keys, nothing leaves the

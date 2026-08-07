@@ -111,6 +111,27 @@ class Settings(BaseSettings):
     #   1.15 -> 124 wpm     1.40 -> 144 wpm
     tts_speed: float = 1.25
 
+    # --- Vision ------------------------------------------------------------
+    # Which engine answers questions about images: anthropic | ollama
+    vision_provider: str = "anthropic"
+
+    # Model used when vision_provider=anthropic. Any current Claude model
+    # can see; this is separate from llm_model so chat and vision can differ.
+    vision_model: str = "claude-opus-5"
+
+    # Model used when vision_provider=ollama. moondream is ~1.7GB and the
+    # smallest usable local option; expect 30-60s per image on a CPU.
+    ollama_vision_model: str = "moondream"
+
+    # OCR engine. rapidocr runs on onnxruntime (already installed for the
+    # memory index), so it needs no extra runtime and no external binary.
+    ocr_provider: str = "rapidocr"
+
+    # Longest edge, in pixels, that a captured image is scaled down to.
+    # Vision models bill by image size and gain nothing from detail beyond
+    # roughly this, but going lower starts to blur small text.
+    vision_max_dimension: int = 1568
+
     # --- Memory ------------------------------------------------------------
     # Where Chroma keeps the vector index on disk, alongside jarvis.db.
     # Gitignored -- it is derived data, rebuildable from the facts table.

@@ -12,10 +12,14 @@ exactly two files -- its own, and this one.
 
 from app.config import settings
 from app.providers.anthropic_provider import AnthropicProvider
+from app.providers.anthropic_vision import AnthropicVisionProvider
 from app.providers.base import LLMProvider, LLMProviderError
 from app.providers.ollama_provider import OllamaProvider
+from app.providers.ollama_vision import OllamaVisionProvider
 from app.providers.piper_provider import PiperTTSProvider
+from app.providers.rapidocr_provider import RapidOCRProvider
 from app.providers.speech import STTProvider, TTSProvider
+from app.providers.vision import OCRProvider, VisionProvider
 from app.providers.whisper_provider import WhisperSTTProvider
 
 # Maps the LLM_PROVIDER value in .env to the class that implements it.
@@ -77,5 +81,38 @@ def get_tts_provider() -> TTSProvider:
         known = ", ".join(sorted(_TTS_PROVIDERS))
         raise LLMProviderError(
             f"Unknown TTS_PROVIDER {settings.tts_provider!r}. Known providers: {known}."
+        )
+    return provider_class()
+
+
+_VISION_PROVIDERS: dict[str, type[VisionProvider]] = {
+    "anthropic": AnthropicVisionProvider,
+    "ollama": OllamaVisionProvider,
+}
+
+_OCR_PROVIDERS: dict[str, type[OCRProvider]] = {
+    "rapidocr": RapidOCRProvider,
+}
+
+
+def get_vision_provider() -> VisionProvider:
+    """Build the image-understanding engine named by settings.vision_provider."""
+    provider_class = _VISION_PROVIDERS.get(settings.vision_provider)
+    if provider_class is None:
+        known = ", ".join(sorted(_VISION_PROVIDERS))
+        raise LLMProviderError(
+            f"Unknown VISION_PROVIDER {settings.vision_provider!r}. "
+            f"Known providers: {known}."
+        )
+    return provider_class()
+
+
+def get_ocr_provider() -> OCRProvider:
+    """Build the OCR engine named by settings.ocr_provider."""
+    provider_class = _OCR_PROVIDERS.get(settings.ocr_provider)
+    if provider_class is None:
+        known = ", ".join(sorted(_OCR_PROVIDERS))
+        raise LLMProviderError(
+            f"Unknown OCR_PROVIDER {settings.ocr_provider!r}. Known providers: {known}."
         )
     return provider_class()

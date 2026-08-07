@@ -10,10 +10,13 @@ from app.core.agent import Agent
 from app.memory.store import MemoryStore
 from app.providers.factory import (
     get_llm_provider,
+    get_ocr_provider as build_ocr_provider,
     get_stt_provider as build_stt_provider,
     get_tts_provider as build_tts_provider,
+    get_vision_provider as build_vision_provider,
 )
 from app.providers.speech import STTProvider, TTSProvider
+from app.providers.vision import OCRProvider, VisionProvider
 
 # Built once and reused. Chroma opens files on disk and loads an embedding
 # model into memory, so constructing a new store for every WebSocket
@@ -65,3 +68,23 @@ def get_tts() -> TTSProvider:
     if _tts_provider is None:
         _tts_provider = build_tts_provider()
     return _tts_provider
+
+
+_vision_provider: VisionProvider | None = None
+_ocr_provider: OCRProvider | None = None
+
+
+def get_vision() -> VisionProvider:
+    """Return the shared image-understanding engine, creating it on first use."""
+    global _vision_provider
+    if _vision_provider is None:
+        _vision_provider = build_vision_provider()
+    return _vision_provider
+
+
+def get_ocr() -> OCRProvider:
+    """Return the shared OCR engine, creating it on first use."""
+    global _ocr_provider
+    if _ocr_provider is None:
+        _ocr_provider = build_ocr_provider()
+    return _ocr_provider
