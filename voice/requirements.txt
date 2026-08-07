@@ -1,0 +1,8 @@
+# The voice client. Installs into the same .venv as the backend.
+#
+#   .venv\Scripts\python.exe -m pip install -r voice/requirements.txt
+#
+# sounddevice rather than PyAudio: PyAudio has broken wheels on Windows
+# (CLAUDE.md). openwakeword runs the "hey jarvis" model on onnxruntime.
+sounddevice==0.5.5
+openwakeword==0.6.0

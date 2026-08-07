@@ -146,7 +146,13 @@ and Piper adapters, POST /voice/transcribe and /voice/speak. Whisper
 hallucinations are filtered via VAD plus no_speech_prob / avg_logprob.
 Measured ~2x realtime transcription on 4 CPU cores.
 
-Phase 7b not started: audio capture (sounddevice), push-to-talk,
-"hey jarvis" wake word via openWakeWord.
+Phase 7b complete: the voice client in voice/ -- microphone capture via
+sounddevice, energy-based endpointing calibrated to room noise,
+push-to-talk, and "hey jarvis" via openWakeWord. It lives outside backend/
+because capturing a microphone is an interface concern, and it imports
+nothing from backend/app -- proving the public API is enough to drive the
+whole assistant, which Phase 13's UI will also need.
+
+Phase 8 not started.
 
 Update this line at the end of every phase.
