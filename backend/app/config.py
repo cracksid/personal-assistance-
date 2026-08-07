@@ -104,6 +104,13 @@ class Settings(BaseSettings):
     tts_voice: str = "en_GB-alan-medium"
     tts_model_dir: str = str(BACKEND_DIR / "models" / "piper")
 
+    # Speaking rate. 1.0 is the voice's own default, which measures ~111
+    # words per minute -- noticeably slower than natural conversational
+    # English at 150-160. Higher is faster. Measured on en_GB-alan-medium:
+    #   1.00 -> 111 wpm     1.25 -> 132 wpm
+    #   1.15 -> 124 wpm     1.40 -> 144 wpm
+    tts_speed: float = 1.25
+
     # --- Memory ------------------------------------------------------------
     # Where Chroma keeps the vector index on disk, alongside jarvis.db.
     # Gitignored -- it is derived data, rebuildable from the facts table.

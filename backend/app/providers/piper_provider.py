@@ -16,7 +16,7 @@ import logging
 import wave
 from pathlib import Path
 
-from piper import PiperVoice
+from piper import PiperVoice, SynthesisConfig
 
 from app.config import settings
 from app.providers.speech import SpeechProviderError, TTSProvider
@@ -60,13 +60,19 @@ class PiperTTSProvider(TTSProvider):
 
         voice = self._get_voice()
 
+        # Piper's knob is "length_scale": how long to stretch each phoneme,
+        # so SMALLER means faster. That inversion is a trap in a config file,
+        # so .env exposes TTS_SPEED where larger means faster, and the
+        # reciprocal is taken here.
+        config = SynthesisConfig(length_scale=1.0 / settings.tts_speed)
+
         try:
             # Synthesise straight into memory. BytesIO behaves like a file,
             # and the wave module writes a proper WAV header into it, so the
             # result is a complete playable file that never touched the disk.
             buffer = io.BytesIO()
             with wave.open(buffer, "wb") as wav_file:
-                voice.synthesize_wav(text, wav_file)
+                voice.synthesize_wav(text, wav_file, syn_config=config)
             return buffer.getvalue()
 
         except SpeechProviderError:
