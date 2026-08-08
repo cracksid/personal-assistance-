@@ -11,7 +11,14 @@ from collections.abc import AsyncIterator
 import anthropic
 
 from app.config import settings
-from app.providers.base import ChatMessage, LLMProvider, LLMProviderError
+from app.providers.base import (
+    ChatMessage,
+    LLMProvider,
+    LLMProviderError,
+    ToolCall,
+    ToolSpec,
+    TurnEvent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +32,8 @@ MAX_TOKENS = 64_000
 
 class AnthropicProvider(LLMProvider):
     """Streams chat completions from Anthropic's Messages API."""
+
+    supports_tools = True
 
     def __init__(self) -> None:
         self._model = settings.llm_model
@@ -58,6 +67,131 @@ class AnthropicProvider(LLMProvider):
             # waiting on the network doesn't block the rest of the server.
             self._client = anthropic.AsyncAnthropic(api_key=api_key)
         return self._client
+
+    @staticmethod
+    def _to_anthropic_messages(messages: list[ChatMessage]) -> list[dict]:
+        """
+        Reshape our neutral messages into Anthropic's content-block format.
+
+        Two things make this more than a field rename:
+
+        - An assistant turn that asked for tools becomes a list of blocks:
+          optional text, then one `tool_use` block per call.
+        - Tool RESULTS are not their own role in Anthropic's API. They are
+          `tool_result` blocks inside a *user* message, and consecutive
+          results must be grouped into one message. Emitting them
+          separately is rejected by the API.
+        """
+        out: list[dict] = []
+        pending_results: list[dict] = []
+
+        def flush_results() -> None:
+            if pending_results:
+                out.append({"role": "user", "content": list(pending_results)})
+                pending_results.clear()
+
+        for message in messages:
+            if message.role == "tool":
+                pending_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": message.tool_call_id,
+                        "content": message.content or "(no output)",
+                    }
+                )
+                continue
+
+            flush_results()
+
+            if message.role == "assistant" and message.tool_calls:
+                blocks: list[dict] = []
+                if message.content:
+                    blocks.append({"type": "text", "text": message.content})
+                for call in message.tool_calls:
+                    blocks.append(
+                        {
+                            "type": "tool_use",
+                            "id": call.id,
+                            "name": call.name,
+                            "input": call.arguments,
+                        }
+                    )
+                out.append({"role": "assistant", "content": blocks})
+            else:
+                out.append({"role": message.role, "content": message.content})
+
+        flush_results()
+        return out
+
+    @staticmethod
+    def _translate(exc: Exception) -> LLMProviderError:
+        """Turn an SDK exception into ours, so callers never import anthropic."""
+        if isinstance(exc, anthropic.AuthenticationError):
+            return LLMProviderError(
+                "Anthropic rejected the API key. Check ANTHROPIC_API_KEY in .env."
+            )
+        if isinstance(exc, anthropic.RateLimitError):
+            return LLMProviderError(
+                "Rate limited by Anthropic. Wait a moment and try again."
+            )
+        if isinstance(exc, anthropic.APIConnectionError):
+            return LLMProviderError(
+                "Could not reach Anthropic. Check your internet connection."
+            )
+        if isinstance(exc, anthropic.APIStatusError):
+            return LLMProviderError(f"Anthropic API error: {exc.message}")
+        return LLMProviderError(f"Anthropic call failed: {exc}")
+
+    async def stream_turn(
+        self,
+        messages: list[ChatMessage],
+        system: str,
+        tools: list[ToolSpec] | None = None,
+    ) -> AsyncIterator[TurnEvent]:
+        """
+        Stream one turn, and report any tools the model wants run.
+
+        Text is yielded as it arrives, exactly as before -- tool use does not
+        cost the streaming experience. The tool requests only become known
+        once the turn completes, which is why they ride on the final event.
+        """
+        client = self._get_client()
+
+        request: dict = {
+            "model": self._model,
+            "max_tokens": MAX_TOKENS,
+            "system": system,
+            "messages": self._to_anthropic_messages(messages),
+            "output_config": {"effort": self._effort},
+        }
+        if tools:
+            request["tools"] = [
+                {
+                    "name": spec.name,
+                    "description": spec.description,
+                    "input_schema": spec.input_schema,
+                }
+                for spec in tools
+            ]
+
+        try:
+            async with client.messages.stream(**request) as stream:
+                async for chunk in stream.text_stream:
+                    yield TurnEvent(type="text", text=chunk)
+
+                # The accumulated message carries the tool_use blocks, which
+                # only exist once the turn is complete.
+                final = await stream.get_final_message()
+
+        except anthropic.APIError as exc:
+            raise self._translate(exc) from exc
+
+        calls = [
+            ToolCall(id=block.id, name=block.name, arguments=dict(block.input))
+            for block in final.content
+            if block.type == "tool_use"
+        ]
+        yield TurnEvent(type="end", tool_calls=calls)
 
     async def stream_chat(
         self, messages: list[ChatMessage], system: str

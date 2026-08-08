@@ -13,6 +13,7 @@ of thing, just a Tool that arrived from somewhere else.
 import logging
 
 from app.tools.base import Tool
+from app.tools.builtin import build_builtin_tools
 from app.tools.filesystem import build_filesystem_tools
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ def reset() -> None:
 
 def load_builtin_tools() -> None:
     """Register the tools that ship with JARVIS."""
-    for tool in build_filesystem_tools():
+    for tool in [*build_filesystem_tools(), *build_builtin_tools()]:
         register(tool)
     logger.info("Registered %s built-in tool(s)", len(_REGISTRY))
 
