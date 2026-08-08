@@ -111,6 +111,24 @@ class Settings(BaseSettings):
     #   1.15 -> 124 wpm     1.40 -> 144 wpm
     tts_speed: float = 1.25
 
+    # --- File system tools -------------------------------------------------
+    # The ONLY directory tree tools may touch. Defaults to your home folder,
+    # which keeps C:\Windows and Program Files out of reach while leaving
+    # documents and projects usable. Narrow it to a single workspace if you
+    # want a tighter blast radius.
+    fs_root: str = str(Path.home())
+
+    # Cap on how much of a file read_file will return. Without it, a tool
+    # could load a multi-gigabyte file into memory and then into a prompt.
+    fs_max_read_bytes: int = 200_000
+
+    # Cap on directory listing and search results, for the same reason.
+    fs_max_entries: int = 200
+
+    # How long a pending confirmation stays valid. A stale "yes" must not be
+    # redeemable an hour later against a request the user has forgotten.
+    tool_confirmation_ttl_seconds: int = 300
+
     # --- Vision ------------------------------------------------------------
     # Which engine answers questions about images: anthropic | ollama
     vision_provider: str = "anthropic"

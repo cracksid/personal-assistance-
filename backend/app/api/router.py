@@ -8,10 +8,11 @@ never needs to change just because a new route was added.
 
 from fastapi import APIRouter
 
-from app.api.routes import chat, health, vision, voice
+from app.api.routes import chat, health, tools, vision, voice
 
 api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(chat.router)
 api_router.include_router(voice.router)
 api_router.include_router(vision.router)
+api_router.include_router(tools.router)

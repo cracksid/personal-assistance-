@@ -7,6 +7,7 @@ app.dependency_overrides without touching route code.
 """
 
 from app.core.agent import Agent
+from app.core.gate import ToolGate
 from app.memory.store import MemoryStore
 from app.providers.factory import (
     get_llm_provider,
@@ -88,3 +89,17 @@ def get_ocr() -> OCRProvider:
     if _ocr_provider is None:
         _ocr_provider = build_ocr_provider()
     return _ocr_provider
+
+
+# The gate holds pending confirmations in memory, so there must be exactly
+# one of it. A per-request instance would forget every approval the moment
+# the request that created it finished.
+_gate: ToolGate | None = None
+
+
+def get_gate() -> ToolGate:
+    """Return the shared tool gate, creating it on first use."""
+    global _gate
+    if _gate is None:
+        _gate = ToolGate()
+    return _gate

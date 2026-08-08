@@ -163,6 +163,15 @@ free; moondream takes ~20s and is too weak for screenshots (it called a
 desktop "irc"). Use OCR for screen text and Claude for genuine image
 understanding.
 
-Phase 9 not started.
+Phase 9a complete: the Tool interface, the path sandbox, the confirmation
+gate, audit logging, and five filesystem tools behind /tools endpoints.
+Three safety layers -- containment inside FS_ROOT (resolved BEFORE checking,
+so '..' and symlinks cannot escape), a deny-list for ~/.ssh and .env style
+paths inside it, and the single gate in core/gate.py that every execution
+passes through. Audit rows are committed before the tool runs, so a crash
+mid-execution still leaves evidence.
+
+Phase 9b not started: teaching the agent loop to call tools, which means
+extending LLMProvider for tool use in both adapters.
 
 Update this line at the end of every phase.

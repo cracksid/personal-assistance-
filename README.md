@@ -95,6 +95,67 @@ python -m alembic history   # list all migrations
 To start over from an empty database, delete `backend/jarvis.db` and run
 `alembic upgrade head` again.
 
+## File system tools (Phase 9a)
+
+JARVIS can list, read, search, write, and delete files — but only inside a
+sandbox, and destructive actions need your approval first.
+
+```powershell
+# What can it do, and where?
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/tools"
+
+# Read-only tools run immediately
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/tools/list_directory/invoke" `
+  -Method Post -ContentType "application/json" -Body '{"path":"."}'
+```
+
+Destructive tools return a **confirmation request** and change nothing:
+
+```powershell
+$r = Invoke-RestMethod -Uri "http://127.0.0.1:8000/tools/write_file/invoke" `
+  -Method Post -ContentType "application/json" `
+  -Body '{"path":"test.txt","content":"hello"}'
+
+$r.confirmation.description
+# -> "Create a new file C:\Users\...\test.txt containing 5 characters."
+
+# Nothing has happened yet. Approve it to actually run:
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/tools/confirm" -Method Post `
+  -ContentType "application/json" `
+  -Body "{`"confirmation_id`":`"$($r.confirmation.confirmation_id)`"}"
+```
+
+### Three safety layers
+
+1. **Containment.** Every path is resolved — collapsing `..`, following
+   symlinks — *before* being checked against `FS_ROOT` (default: your home
+   folder). Order matters: `~/../../Windows` and a symlink pointing at `C:\`
+   both look innocent as strings and both pass a naive prefix test.
+2. **Deny-list.** Being inside the sandbox isn't enough: `~/.ssh`, `~/.aws`,
+   and any `.env` are refused, so JARVIS can't read its own API key. Matched
+   case-insensitively, because `~/.SSH` is the same folder on Windows.
+3. **The gate.** One choke point in `core/gate.py`. Tools declare
+   `requires_confirmation` and describe what they'll do; they never prompt,
+   never check permissions, and never write the audit log. That's so a
+   forgotten check in tool number 40 can't delete a folder.
+
+Approving an action does **not** grant an escape from the sandbox — a
+confirmed write to `C:\Windows` still fails.
+
+### The audit log
+
+Every execution writes a row **before** the tool runs, so a crash
+mid-execution still leaves evidence of what was attempted:
+
+```bash
+python -c "import sqlite3; [print(r) for r in sqlite3.connect('jarvis.db').execute('SELECT tool_name, status, requires_confirmation, confirmed FROM audit_log')]"
+```
+
+It's designed to answer one question: *did anything destructive run without
+approval?*
+
+Directory deletion isn't offered at all — not even behind a confirmation.
+
 ## Vision (Phase 8)
 
 Screenshots, image understanding, and OCR.
