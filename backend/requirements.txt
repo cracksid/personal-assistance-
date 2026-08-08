@@ -23,3 +23,9 @@ piper-tts==1.6.0
 mss==10.2.0
 pillow==12.3.0
 rapidocr-onnxruntime==1.2.3
+
+# Internet tools (Phase 10). ddgs searches DuckDuckGo with no API key;
+# trafilatura extracts the article from a page and drops navigation, ads and
+# cookie banners, which would otherwise cost tokens for no comprehension.
+ddgs==9.14.4
+trafilatura==2.2.0

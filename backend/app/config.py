@@ -139,6 +139,27 @@ class Settings(BaseSettings):
     # reading the same file repeatedly because it isn't satisfied.
     agent_max_tool_steps: int = 5
 
+    # --- Internet tools ----------------------------------------------------
+    # How long to wait for a page. Short: a page that slow is not worth the
+    # user staring at a stalled conversation.
+    web_timeout_seconds: float = 20.0
+
+    # Stop downloading after this much. Without a cap, "fetch this URL" could
+    # point at a multi-gigabyte file and exhaust memory.
+    web_max_download_bytes: int = 3_000_000
+
+    # Cap on extracted text handed to the model. A long article can be tens of
+    # thousands of words, and every one costs tokens.
+    web_max_text_chars: int = 20_000
+
+    # Default number of search results. More is rarely better -- the model
+    # reads all of them, and the first few carry most of the signal.
+    web_search_max_results: int = 5
+
+    # Sent as User-Agent. Honest identification rather than pretending to be
+    # a browser: sites that do not want bots deserve to be able to tell.
+    web_user_agent: str = "JARVIS-personal-assistant/1.0"
+
     # --- Vision ------------------------------------------------------------
     # Which engine answers questions about images: anthropic | ollama
     vision_provider: str = "anthropic"

@@ -15,6 +15,7 @@ import logging
 from app.tools.base import Tool
 from app.tools.builtin import build_builtin_tools
 from app.tools.filesystem import build_filesystem_tools
+from app.tools.web import build_web_tools
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,11 @@ def reset() -> None:
 
 def load_builtin_tools() -> None:
     """Register the tools that ship with JARVIS."""
-    for tool in [*build_filesystem_tools(), *build_builtin_tools()]:
+    for tool in [
+        *build_filesystem_tools(),
+        *build_builtin_tools(),
+        *build_web_tools(),
+    ]:
         register(tool)
     logger.info("Registered %s built-in tool(s)", len(_REGISTRY))
 
