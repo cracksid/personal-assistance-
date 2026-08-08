@@ -72,12 +72,15 @@ async def test_agent_streams_chunks_and_saves_both_messages(
     agent = Agent(provider, memory_store)
 
     # `async for` over the agent, collected into a list. This is what the
-    # WebSocket handler does, one chunk per frame sent to the browser.
-    chunks = [
-        chunk async for chunk in agent.respond(db_session, owner.id, conv.id, "hi")
+    # WebSocket handler does, one frame per event sent to the browser.
+    # Since Phase 9b the agent yields AgentEvent objects rather than bare
+    # strings, because a turn can also report a tool run or ask for approval.
+    events = [
+        event async for event in agent.respond(db_session, owner.id, conv.id, "hi")
     ]
 
-    assert chunks == ["Hello", ", ", "Sid"]
+    assert [e.type for e in events] == ["text", "text", "text"]
+    assert [e.text for e in events] == ["Hello", ", ", "Sid"]
 
     # Both sides of the turn are persisted, and the assistant's chunks were
     # reassembled into one message.

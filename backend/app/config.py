@@ -129,6 +129,16 @@ class Settings(BaseSettings):
     # redeemable an hour later against a request the user has forgotten.
     tool_confirmation_ttl_seconds: int = 300
 
+    # Whether the model may call tools at all. Turning this off makes JARVIS
+    # a pure chatbot again -- useful for comparing behaviour, or for running
+    # a small local model that calls tools badly.
+    tools_enabled: bool = True
+
+    # How many times the model may call tools within a single turn before
+    # the loop gives up. Stops a confused model from looping forever, e.g.
+    # reading the same file repeatedly because it isn't satisfied.
+    agent_max_tool_steps: int = 5
+
     # --- Vision ------------------------------------------------------------
     # Which engine answers questions about images: anthropic | ollama
     vision_provider: str = "anthropic"

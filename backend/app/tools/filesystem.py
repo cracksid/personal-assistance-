@@ -20,7 +20,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from app.config import settings
-from app.tools.base import Tool, ToolError, ToolResult
+from app.tools.base import Tool, ToolContext, ToolError, ToolResult
 from app.tools.paths import describe_size, safe_resolve, sandbox_root
 
 
@@ -60,7 +60,7 @@ class ListDirectory(Tool):
     def describe_action(self, args: PathInput) -> str:
         return f"List the contents of {args.path}"
 
-    async def run(self, args: PathInput) -> ToolResult:
+    async def run(self, args: PathInput, context: ToolContext) -> ToolResult:
         target = safe_resolve(args.path)
         return await asyncio.to_thread(self._list, target)
 
@@ -97,7 +97,7 @@ class ReadFile(Tool):
     def describe_action(self, args: PathInput) -> str:
         return f"Read {args.path}"
 
-    async def run(self, args: PathInput) -> ToolResult:
+    async def run(self, args: PathInput, context: ToolContext) -> ToolResult:
         target = safe_resolve(args.path)
         return await asyncio.to_thread(self._read, target)
 
@@ -134,7 +134,7 @@ class SearchFiles(Tool):
     def describe_action(self, args: SearchInput) -> str:
         return f"Search for {args.pattern!r} in {args.path}"
 
-    async def run(self, args: SearchInput) -> ToolResult:
+    async def run(self, args: SearchInput, context: ToolContext) -> ToolResult:
         root = safe_resolve(args.path)
         return await asyncio.to_thread(self._search, root, args.pattern)
 
@@ -194,7 +194,7 @@ class WriteFile(Tool):
             )
         return f"Create a new file {target} containing {size} characters."
 
-    async def run(self, args: WriteInput) -> ToolResult:
+    async def run(self, args: WriteInput, context: ToolContext) -> ToolResult:
         target = safe_resolve(args.path)
         return await asyncio.to_thread(self._write, target, args.content)
 
@@ -224,7 +224,7 @@ class DeleteFile(Tool):
             return f"DELETE the file {target} ({describe_size(target)}). This cannot be undone."
         return f"Delete {target} (which does not currently exist)."
 
-    async def run(self, args: PathInput) -> ToolResult:
+    async def run(self, args: PathInput, context: ToolContext) -> ToolResult:
         target = safe_resolve(args.path)
         return await asyncio.to_thread(self._delete, target)
 

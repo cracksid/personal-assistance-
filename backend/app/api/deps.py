@@ -44,8 +44,11 @@ def get_agent() -> Agent:
     Note this file -- in the API layer -- is where the provider gets chosen,
     via the factory. app/core/agent.py receives the finished provider and
     never learns which one it is.
+
+    The gate is handed over too, which is what lets the model call tools.
+    An Agent built without one simply has no tools to offer.
     """
-    return Agent(get_llm_provider(), get_memory_store())
+    return Agent(get_llm_provider(), get_memory_store(), get_gate())
 
 
 # Speech engines are cached for the same reason as the memory store, only
@@ -101,5 +104,7 @@ def get_gate() -> ToolGate:
     """Return the shared tool gate, creating it on first use."""
     global _gate
     if _gate is None:
-        _gate = ToolGate()
+        # The memory store is handed to tools through ToolContext, so
+        # remember_fact can write to the same index chat retrieval reads.
+        _gate = ToolGate(get_memory_store())
     return _gate

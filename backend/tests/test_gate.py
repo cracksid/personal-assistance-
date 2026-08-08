@@ -23,7 +23,7 @@ from sqlalchemy import select
 from app.core.gate import ConfirmationRequired, ToolGate
 from app.db.models import AuditLog
 from app.tools import registry
-from app.tools.base import Tool, ToolError, ToolResult
+from app.tools.base import Tool, ToolContext, ToolError, ToolResult
 
 
 class Args(BaseModel):
@@ -42,7 +42,7 @@ class SafeTool(Tool):
     def describe_action(self, args: Args) -> str:
         return f"Look at {args.target}"
 
-    async def run(self, args: Args) -> ToolResult:
+    async def run(self, args: Args, context: ToolContext) -> ToolResult:
         self.ran_with.append(args.target)
         return ToolResult(output=f"looked at {args.target}")
 
@@ -59,7 +59,7 @@ class DangerousTool(SafeTool):
 class ExplodingTool(SafeTool):
     name = "exploding_thing"
 
-    async def run(self, args: Args) -> ToolResult:
+    async def run(self, args: Args, context: ToolContext) -> ToolResult:
         raise ToolError("that path is outside the sandbox")
 
 
@@ -193,7 +193,7 @@ async def test_the_audit_row_is_written_before_the_tool_runs(
     class Watcher(SafeTool):
         name = "watcher"
 
-        async def run(self, args: Args) -> ToolResult:
+        async def run(self, args: Args, context: ToolContext) -> ToolResult:
             rows = audit_rows(db_session)
             seen.append((rows[-1].tool_name, rows[-1].status))
             return ToolResult(output="ok")
