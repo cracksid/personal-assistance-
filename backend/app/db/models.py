@@ -54,6 +54,9 @@ class User(Base):
     facts: Mapped[list["Fact"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    reminders: Mapped[list["Reminder"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Conversation(Base):
@@ -139,6 +142,45 @@ class Fact(Base):
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     user: Mapped["User"] = relationship(back_populates="facts")
+
+
+class Reminder(Base):
+    """
+    Something to tell the user at a particular moment.
+
+    Stored in the database rather than only in the scheduler's memory, so a
+    reminder survives a restart. APScheduler is asked to check this table on
+    a timer; it is not asked to remember anything itself.
+
+    That choice matters: an in-memory job vanishes when the process stops,
+    which for a desktop assistant is every time the machine sleeps. A row
+    outlives all of that.
+    """
+
+    __tablename__ = "reminders"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+    # What to say when the time comes.
+    message: Mapped[str] = mapped_column(Text)
+
+    # When to say it. Stored in UTC like every other timestamp here -- the
+    # model converts the user's "9pm tonight" into an absolute instant
+    # before it ever reaches this table.
+    due_at: Mapped[datetime] = mapped_column()
+
+    # "pending" -> "delivered", or "cancelled".
+    #
+    # Delivery is only marked once a client has actually received it. A
+    # reminder that came due while JARVIS was closed stays pending and is
+    # delivered when you next connect, rather than being silently lost.
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    delivered_at: Mapped[datetime | None] = mapped_column(default=None)
+
+    user: Mapped["User"] = relationship(back_populates="reminders")
 
 
 class AuditLog(Base):

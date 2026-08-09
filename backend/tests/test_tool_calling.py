@@ -540,3 +540,42 @@ async def test_a_web_page_cannot_talk_the_agent_into_destroying_something(
 
     # And a human still has to say yes -- which is the entire point.
     assert events[0].confirmation_id
+
+
+@pytest.mark.anyio
+async def test_a_safe_tool_still_runs_when_another_needs_approval(
+    db_session, memory_store, conversation, tools
+):
+    """
+    Regression test for a bug found live. The model asked for delete_file
+    and create_reminder in the same turn; the delete needed approval, the
+    loop stopped there, and the reminder was silently never set.
+
+    Every requested call must be accounted for: the safe one runs, the
+    dangerous one asks.
+    """
+    owner, conv = conversation
+    provider = ScriptedProvider(
+        [
+            [
+                TurnEvent(
+                    type="end",
+                    tool_calls=[
+                        # Dangerous FIRST, so the old `break` would have
+                        # dropped the harmless one that follows.
+                        ToolCall(id="c1", name="destructive_thing", arguments={"target": "notes"}),
+                        ToolCall(id="c2", name="harmless_thing", arguments={"target": "diary"}),
+                    ],
+                )
+            ]
+        ]
+    )
+    agent = Agent(provider, memory_store, ToolGate())
+
+    events = [
+        e async for e in agent.respond(db_session, owner.id, conv.id, "do both")
+    ]
+
+    assert [e.type for e in events] == ["confirmation", "tool"]
+    assert tools["harmless"].ran == 1  # not dropped
+    assert tools["destructive"].ran == 0  # still waiting

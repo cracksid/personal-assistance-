@@ -30,7 +30,9 @@ import logging
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_agent, get_gate
+from app.api.deps import get_agent, get_gate, get_hub, get_scheduler
+from app.automation.notifications import NotificationHub
+from app.automation.scheduler import ReminderScheduler
 from app.core.agent import Agent
 from app.core.gate import ToolGate
 from app.db import crud
@@ -47,6 +49,8 @@ async def chat_websocket(
     db: Session = Depends(get_db),
     agent: Agent = Depends(get_agent),
     gate: ToolGate = Depends(get_gate),
+    hub: NotificationHub = Depends(get_hub),
+    scheduler: ReminderScheduler = Depends(get_scheduler),
 ) -> None:
     await websocket.accept()
     logger.info("WebSocket connected")
@@ -56,6 +60,16 @@ async def chat_websocket(
     # (the facts table) is separate and survives regardless.
     owner = crud.get_or_create_owner(db)
     conversation = crud.get_or_create_active_conversation(db, owner)
+
+    # From here on this connection can be pushed to, which is what lets a
+    # reminder arrive without anyone having asked for it.
+    hub.register(websocket)
+
+    # Catch up on anything that came due while JARVIS was closed. Without
+    # this, a reminder for 9pm on a laptop that was shut at 8pm would sit
+    # pending until the next scheduler tick -- and the user would reasonably
+    # conclude reminders do not work.
+    await scheduler.deliver_due()
 
     try:
         while True:
@@ -90,6 +104,11 @@ async def chat_websocket(
     except WebSocketDisconnect:
         # The normal way this loop ends: the client closed the tab.
         logger.info("WebSocket disconnected")
+    finally:
+        # In `finally` so the hub is cleaned up however the loop exits --
+        # a normal disconnect, an unhandled error, or server shutdown.
+        # A leaked entry means every future broadcast pays for a dead socket.
+        hub.unregister(websocket)
 
 
 def _parse_control(raw: str) -> dict | None:

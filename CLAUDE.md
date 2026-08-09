@@ -200,6 +200,26 @@ destructive tools. Fetched content is labelled untrusted, but the labelling
 is a nudge -- the guarantee is the Phase 9a gate, and there is a test that
 assumes the model IS fooled and asserts nothing is destroyed anyway.
 
-Phase 11 not started.
+Phase 11a complete: APScheduler, a reminders table, and create/list/cancel
+reminder tools. ONE polling job asks the database every 20s whether anything
+is due, rather than a timer per reminder -- less precise, but the scheduler
+holds no state and survives restarts, sleeps and crashes with no recovery
+code. A reminder is marked delivered only once a client actually receives
+it, so one that came due while JARVIS was closed arrives on next connect
+instead of vanishing. Times are naive UTC internally (SQLite drops tzinfo)
+and converted at the edges.
+
+Two live bugs found and fixed during this phase:
+  - The agent loop broke out of the tool loop on the first confirmation,
+    silently dropping every later tool in the same turn. Observed: Claude
+    asked for delete_file and create_reminder together, the delete needed
+    approval, and the reminder was never set with nothing said. Now every
+    call is accounted for -- safe ones run, dangerous ones each ask.
+  - create_reminder accepted only an ISO timestamp, on the theory that the
+    model converts natural language. True for absolute times, false for
+    relative ones: asked to remind "in 40 seconds", Claude sent
+    due_at="40 seconds". due_in_seconds was added.
+
+Phase 11b not started: file watchers and multi-step workflows.
 
 Update this line at the end of every phase.

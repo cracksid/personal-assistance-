@@ -6,6 +6,8 @@ file decides *how* it gets built -- and tests can swap any of it out with
 app.dependency_overrides without touching route code.
 """
 
+from app.automation.notifications import NotificationHub
+from app.automation.scheduler import ReminderScheduler
 from app.core.agent import Agent
 from app.core.gate import ToolGate
 from app.memory.store import MemoryStore
@@ -108,3 +110,33 @@ def get_gate() -> ToolGate:
         # remember_fact can write to the same index chat retrieval reads.
         _gate = ToolGate(get_memory_store())
     return _gate
+
+
+# The notification hub tracks connected WebSockets, so like the gate there
+# must be exactly one. A per-request instance would know about nobody.
+_hub: NotificationHub | None = None
+_scheduler: ReminderScheduler | None = None
+
+
+def get_hub() -> NotificationHub:
+    """Return the shared notification hub, creating it on first use."""
+    global _hub
+    if _hub is None:
+        _hub = NotificationHub()
+    return _hub
+
+
+def get_scheduler() -> ReminderScheduler:
+    """
+    Return the shared scheduler, creating it on first use.
+
+    It is handed SessionLocal rather than a session: the scheduler runs on a
+    timer, outside any request, so there is no request-scoped session for it
+    to borrow. It opens and closes its own.
+    """
+    global _scheduler
+    if _scheduler is None:
+        from app.db.session import SessionLocal
+
+        _scheduler = ReminderScheduler(get_hub(), SessionLocal)
+    return _scheduler

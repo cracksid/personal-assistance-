@@ -160,6 +160,17 @@ class Settings(BaseSettings):
     # a browser: sites that do not want bots deserve to be able to tell.
     web_user_agent: str = "JARVIS-personal-assistant/1.0"
 
+    # --- Automation --------------------------------------------------------
+    # How often the scheduler asks the database whether anything is due.
+    # A reminder can therefore be up to this many seconds late, which is a
+    # fair trade for a scheduler that holds no state and survives restarts.
+    reminder_check_seconds: int = 20
+
+    # Cap on how far ahead a reminder may be set. Guards against a model
+    # miscalculating a date and quietly scheduling something for the year
+    # 3000, which would sit in the table forever.
+    reminder_max_days_ahead: int = 365
+
     # --- Vision ------------------------------------------------------------
     # Which engine answers questions about images: anthropic | ollama
     vision_provider: str = "anthropic"

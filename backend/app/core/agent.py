@@ -220,7 +220,16 @@ class Agent:
                         description=outcome.description,
                     )
                     awaiting_confirmation = True
-                    break
+                    # `continue`, not `break`. A model can request several
+                    # tools at once, and stopping here would silently drop
+                    # the rest -- observed live: asked for delete_file and
+                    # create_reminder together, the delete needed approval
+                    # and the reminder was never set, with nothing said.
+                    #
+                    # So the safe calls still run and every dangerous one
+                    # still gets its own confirmation. The turn ends after
+                    # this loop, once they have all been dealt with.
+                    continue
 
                 yield AgentEvent(
                     type="tool", tool_name=call.name, ok=outcome.ok, text=outcome.output

@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.deps import get_memory_store
+from app.api.deps import get_memory_store, get_scheduler
 from app.api.router import api_router
 from app.config import settings
 from app.db.session import SessionLocal
@@ -71,9 +71,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     for us because it is passed to FastAPI(lifespan=...) below.
     """
     _heal_memory_index()
+
+    # The scheduler needs a running event loop, which exists by the time
+    # lifespan runs but not at import. Starting it here also means it stops
+    # cleanly on shutdown instead of being killed mid-check.
+    scheduler = get_scheduler()
+    scheduler.start()
+
     yield
-    # Nothing to tear down yet -- SQLAlchemy and Chroma both clean up their
-    # own connections when the process exits.
+
+    scheduler.shutdown()
+    # SQLAlchemy and Chroma clean up their own connections on exit.
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
