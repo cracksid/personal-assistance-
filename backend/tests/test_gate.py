@@ -252,6 +252,61 @@ async def test_a_failing_tool_is_recorded_as_an_error(db_session, gate: ToolGate
     assert "outside the sandbox" in row.error_message
 
 
+# --- unattended runs (Phase 11b) -------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_a_destructive_tool_is_refused_when_nobody_is_watching(
+    db_session, gate: ToolGate, tools
+):
+    """
+    THE test for scheduled tasks. A task firing at 8am has no human to
+    approve anything, so a destructive tool must be REFUSED outright.
+
+    Queueing the confirmation instead would leave an approval prompt sitting
+    around for whenever someone next looked -- inviting a "yes" to a request
+    they were not present for and no longer remember the context of.
+    """
+    result = await gate.invoke(
+        db_session, "dangerous_thing", {"target": "notes.txt"}, unattended=True
+    )
+
+    assert isinstance(result, ToolResult)
+    assert result.ok is False
+    assert "needs a human to approve" in result.error
+    assert tools["dangerous"].ran_with == []
+    assert gate.pending_count() == 0  # nothing left waiting
+
+
+@pytest.mark.anyio
+async def test_a_refusal_when_unattended_is_recorded(db_session, gate: ToolGate, tools):
+    """
+    Nothing ran, so this is not an execution record. It is logged anyway
+    because it says a scheduled task is written in a way that wants to
+    destroy something on a timer -- worth being able to find.
+    """
+    await gate.invoke(
+        db_session, "dangerous_thing", {"target": "notes.txt"}, unattended=True
+    )
+
+    row = audit_rows(db_session)[-1]
+    assert row.status == "refused_unattended"
+    assert row.requires_confirmation is True
+    assert row.confirmed is False
+    assert "notes.txt" in row.arguments
+
+
+@pytest.mark.anyio
+async def test_a_safe_tool_still_runs_when_unattended(db_session, gate: ToolGate, tools):
+    """A scheduled task must still be able to do its actual job."""
+    result = await gate.invoke(
+        db_session, "safe_thing", {"target": "a file"}, unattended=True
+    )
+
+    assert result.ok
+    assert tools["safe"].ran_with == ["a file"]
+
+
 # --- argument validation ---------------------------------------------------
 
 

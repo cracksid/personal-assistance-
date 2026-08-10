@@ -57,6 +57,9 @@ class User(Base):
     reminders: Mapped[list["Reminder"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    scheduled_tasks: Mapped[list["ScheduledTask"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Conversation(Base):
@@ -181,6 +184,63 @@ class Reminder(Base):
     delivered_at: Mapped[datetime | None] = mapped_column(default=None)
 
     user: Mapped["User"] = relationship(back_populates="reminders")
+
+
+class ScheduledTask(Base):
+    """
+    A prompt JARVIS runs to itself, on a repeating schedule.
+
+    A Reminder carries text to read out. A ScheduledTask carries an
+    INSTRUCTION -- "summarise my pending reminders" -- which is run through
+    the agent loop, tools and all, and whose *answer* is what gets pushed to
+    the user. That is the whole difference, and it is why this one needs the
+    unattended rule in core/gate.py and a Reminder does not.
+
+    WHY THE SCHEDULE IS STORED AS A LOCAL "HH:MM" AND NOT A UTC INSTANT.
+
+    Every other timestamp here is UTC, for good reasons. A daily time is the
+    exception, because "8am" is not an instant -- it is a recurring position
+    in the user's day. Convert it to UTC once and store that, and it drifts
+    to 7am or 9am the next time the clocks change. Storing the wall-clock
+    time the user asked for and converting on each run keeps 8am at 8am.
+
+    next_run_at IS a UTC instant, because that is a specific moment and the
+    scheduler compares it against now. It is recomputed after every run.
+    """
+
+    __tablename__ = "scheduled_tasks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+    # A short handle, so the user can say "cancel the morning briefing".
+    name: Mapped[str] = mapped_column(String(100))
+
+    # What to ask JARVIS when it fires, phrased as an instruction.
+    prompt: Mapped[str] = mapped_column(Text)
+
+    # "interval" (every N seconds) or "daily" (at a wall-clock time).
+    schedule_kind: Mapped[str] = mapped_column(String(20), default="interval")
+    interval_seconds: Mapped[int | None] = mapped_column(default=None)
+    daily_at: Mapped[str | None] = mapped_column(String(5), default=None)  # "08:00"
+
+    # Naive UTC, like Reminder.due_at, for the same SQLite reason.
+    next_run_at: Mapped[datetime] = mapped_column()
+    last_run_at: Mapped[datetime | None] = mapped_column(default=None)
+
+    # "active" or "cancelled". Cancelled rows are kept rather than deleted so
+    # the history of what ran, and what it said, stays readable.
+    status: Mapped[str] = mapped_column(String(20), default="active")
+
+    # Each task keeps its own conversation, so a daily briefing builds up
+    # context across days without mixing into the user's live chat.
+    conversation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("conversations.id"), default=None
+    )
+
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+    user: Mapped["User"] = relationship(back_populates="scheduled_tasks")
 
 
 class AuditLog(Base):

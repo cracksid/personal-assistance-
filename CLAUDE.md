@@ -220,6 +220,38 @@ Two live bugs found and fixed during this phase:
     relative ones: asked to remind "in 40 seconds", Claude sent
     due_at="40 seconds". due_in_seconds was added.
 
-Phase 11b not started: file watchers and multi-step workflows.
+Phase 11b (workflows) complete: scheduled tasks -- a PROMPT JARVIS runs to
+itself on a repeat, through the full agent loop, whose answer is pushed to
+the user. Two rules define the phase, and both are about the fact that
+nobody is present:
+
+  - Destructive tools are REFUSED when unattended, not queued. An approval
+    prompt that outlives the moment invites a "yes" to a request the user
+    was never present for. The rule lives in core/gate.py, the one choke
+    point; the agent only passes a flag down. Verified live: a task told to
+    delete a file logged refused_unattended and the file survived.
+  - A task does not RUN when nobody is connected. The deliberate difference
+    from a reminder: a reminder is already written so it waits and arrives
+    late, but a task must be generated and every run is a paid model call.
+    Away for three days you get one briefing, not three.
+
+A daily time is stored as the wall-clock string ("08:00"), not a UTC
+instant -- "8am" is a position in the day, not a moment, and converting it
+once makes it drift when the clocks change. next_run_at IS UTC.
+
+A failed run still advances the schedule, so a permanently broken task
+cannot retry on every check and spend money in a loop.
+
+Bug found and fixed this phase, exposed by real use rather than by tests:
+the WebSocket tests never overrode get_scheduler, so it was built against
+SessionLocal -- the REAL jarvis.db. A test connected, deliver_due() ran on
+connect, and a genuine pending reminder was pushed into a test socket and
+marked delivered. Running the suite destroyed real data, and the test
+passed or failed depending on the developer's own database. conftest.py now
+has an autouse fixture blocking it for every test, present and future.
+
+Phase 11c not started: file watchers (needs the watchdog dependency, and
+raises its own question -- a filesystem event is untrusted input that would
+trigger an unattended agent turn).
 
 Update this line at the end of every phase.

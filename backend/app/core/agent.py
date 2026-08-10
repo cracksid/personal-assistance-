@@ -137,6 +137,7 @@ class Agent:
         user_id: int,
         conversation_id: int,
         user_text: str,
+        unattended: bool = False,
     ) -> AsyncIterator[AgentEvent]:
         """
         Handle one user message, yielding events as the turn is produced.
@@ -145,6 +146,12 @@ class Agent:
         thread and awaits its result. The database and Chroma calls are both
         synchronous, and calling one directly from async code would block the
         whole server until it finished.
+
+        `unattended` marks a turn nobody is watching -- a scheduled task
+        firing at 8am. It changes exactly one thing: the gate refuses
+        destructive tools instead of asking. The agent does not decide that
+        itself; it passes the flag down and the gate enforces it, because
+        CLAUDE.md puts that decision in exactly one place.
         """
         # Save the user's message FIRST, then load history. Because of that
         # order the history below already contains this message, and it is
@@ -209,7 +216,11 @@ class Agent:
                 # EVERY tool call goes through the gate. There is no path
                 # from here to a tool's run() that skips it.
                 outcome = await self._gate.invoke(
-                    db, call.name, call.arguments, user_id=user_id
+                    db,
+                    call.name,
+                    call.arguments,
+                    user_id=user_id,
+                    unattended=unattended,
                 )
 
                 if isinstance(outcome, ConfirmationRequired):

@@ -20,6 +20,63 @@ from app.db.base import Base
 from app.memory.store import MemoryStore
 
 
+class _InertScheduler:
+    """
+    A scheduler that does nothing, for tests.
+
+    See never_touch_the_real_database below for why this has to exist.
+    """
+
+    async def deliver_due(self) -> int:
+        return 0
+
+    async def run_due(self) -> int:
+        return 0
+
+
+@pytest.fixture(autouse=True)
+def never_touch_the_real_database() -> Generator[None, None, None]:
+    """
+    Stop the WebSocket tests reaching the developer's actual jarvis.db.
+
+    THIS FIXTURE EXISTS BECAUSE OF A REAL BUG, found the hard way.
+
+    Every other fixture here is careful to use a throwaway in-memory
+    database. But the chat WebSocket route also depends on get_scheduler(),
+    and the tests only ever overrode get_db, get_agent and get_gate. So
+    get_scheduler() built the real one, bound to SessionLocal -- which
+    points at jarvis.db on disk.
+
+    The consequence was not theoretical. A test connected a WebSocket, the
+    route called deliver_due() as it does on every connect, the scheduler
+    read the REAL database, found a genuine pending reminder, pushed it into
+    the test socket and marked it delivered. A real reminder was destroyed by
+    running the test suite, and an unrelated test failed with "expected
+    confirmation, got reminder".
+
+    It stayed invisible for a whole phase because it only shows up when the
+    real database happens to have something pending -- which means it was
+    also a test that passed or failed depending on the developer's own data.
+
+    autouse=True means every test gets this whether it asks or not. That is
+    the point: the next route that quietly depends on a real-database
+    singleton should not be able to reintroduce this.
+    """
+    from app.api import deps
+    from app.main import app
+
+    app.dependency_overrides[deps.get_scheduler] = _InertScheduler
+    app.dependency_overrides[deps.get_task_runner] = _InertScheduler
+    try:
+        yield
+    finally:
+        app.dependency_overrides.pop(deps.get_scheduler, None)
+        app.dependency_overrides.pop(deps.get_task_runner, None)
+        # Singletons built during a test must not leak into the next one.
+        deps._scheduler = None
+        deps._task_runner = None
+
+
 @pytest.fixture
 def anyio_backend() -> str:
     """

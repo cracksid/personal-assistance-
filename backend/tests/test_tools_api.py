@@ -64,7 +64,7 @@ def test_listing_tools_shows_which_ones_are_dangerous(client: TestClient):
     body = client.get("/tools").json()
 
     dangerous = {t["name"] for t in body["tools"] if t["requires_confirmation"]}
-    assert dangerous == {"write_file", "delete_file"}
+    assert dangerous == {"write_file", "delete_file", "create_scheduled_task"}
     # The caller is told where the boundary is, not left to guess.
     assert body["sandbox_root"]
 

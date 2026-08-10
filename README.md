@@ -171,6 +171,60 @@ Two ways to say when, because models reach for both:
 | "in 10 minutes" | `due_in_seconds=600` |
 | "at 9pm tonight" | `due_at="2026-08-09T21:00:00+05:30"` |
 
+## Scheduled tasks (Phase 11b)
+
+A reminder carries text to read out. A **scheduled task** carries an
+instruction, run through the full agent loop — tools and all — on a repeat.
+What gets pushed to you is the *answer*.
+
+```
+> Make a repeating task named pulse, every 300 seconds, prompt:
+  "Say the current time in one short sentence."
+  [CONFIRM?] Set up a repeating task 'every 5 minutes' called 'pulse'...
+  [TOOL create_scheduled_task] Task #1 scheduled. First run: 10 August at 23:16.
+
+  *** TASK FIRED: pulse ***
+  The current time is 10:17 PM. It's late enough for your guitar practice.
+  tools used: ['get_current_time']
+```
+
+**Destructive tools are refused when nobody is watching, not queued.** A task
+firing at 8am has no human to approve anything. Queueing a confirmation would
+leave an approval prompt sitting around for whenever someone next looked —
+inviting a "yes" to a request they were not present for. So the gate refuses
+outright and records `refused_unattended` in the audit log. Verified live: a
+task told to delete a file produced this, and the file is still there.
+
+```
+canary still exists: True
+  audit: ('delete_file', 'refused_unattended', confirmed=0)
+```
+
+**A task does not run when nobody is connected.** This is the deliberate
+difference from a reminder. A reminder is already written, so it waits and is
+delivered late. A task has to be *generated*, and every run is a paid model
+call — so it is not started at all until there is somebody to read the answer.
+Its due time is left untouched and it fires on the next check after you
+connect. Away for three days, you get one briefing, not three.
+
+**A failed task still moves its schedule forward.** Leaving it due would make
+a permanently broken task retry on every check — which, for something that
+calls a model, means spending money in a loop.
+
+Two ways to say when:
+
+| Ask | Tool arguments |
+|---|---|
+| "every morning at 8" | `schedule_kind="daily", daily_at="08:00"` |
+| "every hour" | `schedule_kind="interval", interval_seconds=3600` |
+
+A daily time is stored as the wall-clock string you asked for, not converted
+to a UTC instant. "8am" is not an instant — it is a position in your day, and
+storing it as UTC would drift by an hour the next time the clocks change.
+
+`TASK_MIN_INTERVAL_SECONDS` (default 300) is a spending limit, not a sanity
+check: "every 5 seconds" would quietly burn API credit all night.
+
 ## File system tools (Phase 9a)
 
 JARVIS can list, read, search, write, and delete files — but only inside a

@@ -171,6 +171,20 @@ class Settings(BaseSettings):
     # 3000, which would sit in the table forever.
     reminder_max_days_ahead: int = 365
 
+    # How often to ask whether a scheduled task is due. Separate from the
+    # reminder check because the two cost wildly different amounts: a due
+    # reminder is a string lookup, a due task is a full model call.
+    task_check_seconds: int = 30
+
+    # The shortest repeat allowed. This is a spending limit as much as a
+    # sanity check -- every run is an LLM call, so "every 5 seconds" would
+    # quietly burn money all night. Five minutes is the floor.
+    task_min_interval_seconds: int = 300
+
+    # How many active tasks one user may have. A model that misreads "every
+    # morning" as "make me a task" should hit a wall, not fill the table.
+    task_max_active: int = 20
+
     # --- Vision ------------------------------------------------------------
     # Which engine answers questions about images: anthropic | ollama
     vision_provider: str = "anthropic"

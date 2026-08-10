@@ -8,6 +8,7 @@ app.dependency_overrides without touching route code.
 
 from app.automation.notifications import NotificationHub
 from app.automation.scheduler import ReminderScheduler
+from app.automation.task_runner import TaskRunner
 from app.core.agent import Agent
 from app.core.gate import ToolGate
 from app.memory.store import MemoryStore
@@ -116,6 +117,7 @@ def get_gate() -> ToolGate:
 # must be exactly one. A per-request instance would know about nobody.
 _hub: NotificationHub | None = None
 _scheduler: ReminderScheduler | None = None
+_task_runner: TaskRunner | None = None
 
 
 def get_hub() -> NotificationHub:
@@ -124,6 +126,22 @@ def get_hub() -> NotificationHub:
     if _hub is None:
         _hub = NotificationHub()
     return _hub
+
+
+def get_task_runner() -> TaskRunner:
+    """
+    Return the shared scheduled-task runner, creating it on first use.
+
+    get_agent is passed rather than an Agent: the runner builds a fresh one
+    per run, so a task started an hour from now uses whatever provider is
+    configured then, not whichever was current at startup.
+    """
+    global _task_runner
+    if _task_runner is None:
+        from app.db.session import SessionLocal
+
+        _task_runner = TaskRunner(get_hub(), SessionLocal, get_agent)
+    return _task_runner
 
 
 def get_scheduler() -> ReminderScheduler:
@@ -138,5 +156,5 @@ def get_scheduler() -> ReminderScheduler:
     if _scheduler is None:
         from app.db.session import SessionLocal
 
-        _scheduler = ReminderScheduler(get_hub(), SessionLocal)
+        _scheduler = ReminderScheduler(get_hub(), SessionLocal, get_task_runner())
     return _scheduler

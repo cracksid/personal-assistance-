@@ -90,12 +90,20 @@ class ToolGate:
         tool_name: str,
         raw_args: dict,
         user_id: int | None = None,
+        unattended: bool = False,
     ) -> ToolResult | ConfirmationRequired:
         """
         Run a tool, or ask for approval first.
 
         Returns ConfirmationRequired if the tool is destructive and has not
         been approved. In that case NOTHING has run and nothing has changed.
+
+        `unattended` is set by scheduled tasks, which run at 8am whether
+        anyone is watching or not. In that mode a destructive tool is
+        REFUSED rather than queued for approval: a confirmation nobody is
+        there to answer would sit around until it expired, and -- far worse
+        -- an approval prompt that outlives the moment invites someone to
+        say yes hours later to a request they no longer remember.
         """
         self._drop_expired()
 
@@ -125,6 +133,19 @@ class ToolGate:
             )
 
         if tool.requires_confirmation:
+            if unattended:
+                await self._audit_refused_unattended(db, tool, args, user_id)
+                logger.warning(
+                    "Refused %s: destructive, and this run is unattended", tool.name
+                )
+                return ToolResult(
+                    ok=False,
+                    error=(
+                        f"{tool.name} needs a human to approve it, and this is a "
+                        "scheduled run with nobody watching. Do the rest of the "
+                        "task and say what you could not do."
+                    ),
+                )
             return self._request_confirmation(tool, args, user_id)
 
         return await self._execute(db, tool, args, user_id, confirmed=False)
@@ -263,6 +284,33 @@ class ToolGate:
                     confirmed=False,
                     status="invalid_arguments",
                     error_message=error[:2000],
+                )
+            )
+            db.commit()
+
+        await asyncio.to_thread(write)
+
+    async def _audit_refused_unattended(
+        self, db: Session, tool: Tool, args: BaseModel, user_id: int | None
+    ) -> None:
+        """
+        Record a destructive tool that a scheduled task reached for.
+
+        Nothing ran. This is logged anyway because it is the interesting
+        case: it says a task is written in a way that wants to destroy
+        something on a timer, which is worth being able to find.
+        """
+
+        def write() -> None:
+            db.add(
+                AuditLog(
+                    user_id=user_id,
+                    tool_name=tool.name,
+                    arguments=json.dumps(args.model_dump(), default=str)[:4000],
+                    requires_confirmation=True,
+                    confirmed=False,
+                    status="refused_unattended",
+                    error_message="Destructive tool requested with no human present.",
                 )
             )
             db.commit()

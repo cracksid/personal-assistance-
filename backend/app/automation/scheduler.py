@@ -55,16 +55,22 @@ def utcnow_naive() -> datetime:
 class ReminderScheduler:
     """Checks for due reminders and pushes them to whoever is listening."""
 
-    def __init__(self, hub: NotificationHub, session_factory) -> None:
+    def __init__(self, hub: NotificationHub, session_factory, task_runner=None) -> None:
         """
         Args:
             hub: where to send reminders that come due.
             session_factory: called to get a database session. The scheduler
                 makes its own -- it runs on a timer, not inside a request,
                 so there is no request-scoped session to borrow.
+            task_runner: optional TaskRunner (Phase 11b). This class owns the
+                only APScheduler in the process, so a second recurring job
+                registers here rather than starting a competing scheduler.
+                Optional so every existing test still builds one in two
+                arguments, and so reminders work with tasks switched off.
         """
         self._hub = hub
         self._session_factory = session_factory
+        self._task_runner = task_runner
         self._scheduler = AsyncIOScheduler()
 
     def start(self) -> None:
@@ -78,10 +84,25 @@ class ReminderScheduler:
             coalesce=True,
             max_instances=1,
         )
+
+        if self._task_runner is not None:
+            self._scheduler.add_job(
+                self._task_runner.run_due,
+                "interval",
+                seconds=settings.task_check_seconds,
+                id="run_due_tasks",
+                coalesce=True,
+                # max_instances=1 matters far more here than for reminders:
+                # a task run is a model call taking seconds, and without this
+                # a slow one would have a second copy started on top of it.
+                max_instances=1,
+            )
+
         self._scheduler.start()
         logger.info(
-            "Scheduler started (checking reminders every %ss)",
+            "Scheduler started (reminders every %ss, tasks every %ss)",
             settings.reminder_check_seconds,
+            settings.task_check_seconds if self._task_runner else "off",
         )
 
     def shutdown(self) -> None:
