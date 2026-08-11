@@ -29,3 +29,11 @@ rapidocr-onnxruntime==1.2.3
 # cookie banners, which would otherwise cost tokens for no comprehension.
 ddgs==9.14.4
 trafilatura==2.2.0
+
+# Automation (Phase 11). APScheduler runs the polling jobs for reminders and
+# scheduled tasks -- no Celery, no message broker, because this is one user on
+# one desktop. watchdog subscribes to the OS's own filesystem notifications
+# (ReadDirectoryChangesW on Windows) rather than polling, so a watched folder
+# costs nothing while nothing happens in it.
+APScheduler==3.11.3
+watchdog==6.0.0

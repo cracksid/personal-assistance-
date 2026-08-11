@@ -185,6 +185,29 @@ class Settings(BaseSettings):
     # morning" as "make me a task" should hit a wall, not fill the table.
     task_max_active: int = 20
 
+    # --- File watchers -----------------------------------------------------
+    # Whether to watch folders at all. Off switches the whole subsystem
+    # without deleting anyone's watches.
+    watchers_enabled: bool = True
+
+    # Ignore repeat changes to the same file within this many seconds. Saving
+    # a file in an editor produces several OS events -- a temp file, a rename,
+    # a metadata touch -- and reporting each one is noise, not information.
+    watch_debounce_seconds: float = 2.0
+
+    # Hard cap on notifications per minute. A build, a git checkout or an
+    # unzip can produce thousands of events in a second; past this the
+    # watcher sends one summary line instead of flooding the socket.
+    watch_max_events_per_minute: int = 60
+
+    # How many folders may be watched at once.
+    watch_max_folders: int = 10
+
+    # How often the watcher re-reads the database so a newly added watch
+    # starts working. The tools only write rows; nothing reaches into the
+    # running observer, so the database stays the only state.
+    watch_sync_seconds: int = 30
+
     # --- Vision ------------------------------------------------------------
     # Which engine answers questions about images: anthropic | ollama
     vision_provider: str = "anthropic"

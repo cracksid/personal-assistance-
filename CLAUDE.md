@@ -250,8 +250,41 @@ marked delivered. Running the suite destroyed real data, and the test
 passed or failed depending on the developer's own database. conftest.py now
 has an autouse fixture blocking it for every test, present and future.
 
-Phase 11c not started: file watchers (needs the watchdog dependency, and
-raises its own question -- a filesystem event is untrusted input that would
-trigger an unattended agent turn).
+Phase 11c (watchers) complete, and Phase 11 with it: watchdog-based folder
+watching that is NOTIFY-ONLY by design.
+
+A change becomes a notification frame and stops. No filename is built into
+a prompt, no model is called, no tool runs. The alternative -- a file event
+running an agent turn -- would make anyone who can write into a watched
+folder an author of instructions for an agent holding tools, with nobody
+present. The 11b unattended rule would block destructive tools there, but
+read-only ones (read_file, fetch_url) would still run unsupervised, which
+is an exfiltration shape rather than a deletion one. Sid chose notify-only.
+There is no rule to enforce because there is no agent turn.
+
+The real difficulty was threads, not files. watchdog delivers callbacks on
+its OWN thread, and asyncio objects are not thread-safe;
+loop.call_soon_threadsafe is the single supported bridge and is what
+watchers.py uses. Filtering runs on the watchdog thread deliberately --
+cheaper than waking the loop for a build directory's churn.
+
+Most of the code is noise control: debounce (one save fires several OS
+events), an ignore list (.git, __pycache__, node_modules, .tmp/.crdownload/
+~$ partials), the paths.py deny-list, and a per-minute flood cap that sends
+one summary instead of thousands of frames.
+
+Events are DROPPED when nobody is connected -- unlike a reminder, which is
+a promise and waits. A file event is unbounded in volume and stale in
+minutes.
+
+Watches live in the database; the service re-syncs every 30s. The tools
+only write rows and never reach into the running observer, so a restart
+needs no recovery code. Verified live: the tool wrote a row and the sync
+picked it up two seconds later.
+
+Also fixed here: APScheduler was never added to requirements.txt in Phase
+11a. Both it and watchdog are now pinned.
+
+Phase 11 is complete. Next is Phase 12 (plugins: loader, SDK, docs).
 
 Update this line at the end of every phase.

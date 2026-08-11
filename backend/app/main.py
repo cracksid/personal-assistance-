@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.deps import get_memory_store, get_scheduler
+from app.api.deps import get_memory_store, get_scheduler, get_watcher_service
 from app.api.router import api_router
 from app.config import settings
 from app.db.session import SessionLocal
@@ -78,8 +78,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     scheduler = get_scheduler()
     scheduler.start()
 
+    # Started after the scheduler because it captures the running event loop
+    # to hand filesystem events across from watchdog's own thread.
+    watchers = get_watcher_service()
+    await watchers.start()
+
     yield
 
+    await watchers.stop()
     scheduler.shutdown()
     # SQLAlchemy and Chroma clean up their own connections on exit.
 

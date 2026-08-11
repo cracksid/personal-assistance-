@@ -55,7 +55,13 @@ def utcnow_naive() -> datetime:
 class ReminderScheduler:
     """Checks for due reminders and pushes them to whoever is listening."""
 
-    def __init__(self, hub: NotificationHub, session_factory, task_runner=None) -> None:
+    def __init__(
+        self,
+        hub: NotificationHub,
+        session_factory,
+        task_runner=None,
+        watcher_service=None,
+    ) -> None:
         """
         Args:
             hub: where to send reminders that come due.
@@ -67,10 +73,14 @@ class ReminderScheduler:
                 registers here rather than starting a competing scheduler.
                 Optional so every existing test still builds one in two
                 arguments, and so reminders work with tasks switched off.
+            watcher_service: optional WatcherService (Phase 11c). Re-synced
+                on a timer so a watch added by a tool starts working without
+                the tool having to reach into the running observer.
         """
         self._hub = hub
         self._session_factory = session_factory
         self._task_runner = task_runner
+        self._watcher_service = watcher_service
         self._scheduler = AsyncIOScheduler()
 
     def start(self) -> None:
@@ -95,6 +105,16 @@ class ReminderScheduler:
                 # max_instances=1 matters far more here than for reminders:
                 # a task run is a model call taking seconds, and without this
                 # a slow one would have a second copy started on top of it.
+                max_instances=1,
+            )
+
+        if self._watcher_service is not None:
+            self._scheduler.add_job(
+                self._watcher_service.sync,
+                "interval",
+                seconds=settings.watch_sync_seconds,
+                id="sync_watched_folders",
+                coalesce=True,
                 max_instances=1,
             )
 

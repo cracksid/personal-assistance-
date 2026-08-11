@@ -9,6 +9,7 @@ app.dependency_overrides without touching route code.
 from app.automation.notifications import NotificationHub
 from app.automation.scheduler import ReminderScheduler
 from app.automation.task_runner import TaskRunner
+from app.automation.watchers import WatcherService
 from app.core.agent import Agent
 from app.core.gate import ToolGate
 from app.memory.store import MemoryStore
@@ -118,6 +119,7 @@ def get_gate() -> ToolGate:
 _hub: NotificationHub | None = None
 _scheduler: ReminderScheduler | None = None
 _task_runner: TaskRunner | None = None
+_watcher_service: WatcherService | None = None
 
 
 def get_hub() -> NotificationHub:
@@ -126,6 +128,16 @@ def get_hub() -> NotificationHub:
     if _hub is None:
         _hub = NotificationHub()
     return _hub
+
+
+def get_watcher_service() -> WatcherService:
+    """Return the shared watcher service, creating it on first use."""
+    global _watcher_service
+    if _watcher_service is None:
+        from app.db.session import SessionLocal
+
+        _watcher_service = WatcherService(get_hub(), SessionLocal)
+    return _watcher_service
 
 
 def get_task_runner() -> TaskRunner:
@@ -156,5 +168,7 @@ def get_scheduler() -> ReminderScheduler:
     if _scheduler is None:
         from app.db.session import SessionLocal
 
-        _scheduler = ReminderScheduler(get_hub(), SessionLocal, get_task_runner())
+        _scheduler = ReminderScheduler(
+            get_hub(), SessionLocal, get_task_runner(), get_watcher_service()
+        )
     return _scheduler
