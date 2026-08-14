@@ -236,6 +236,53 @@ async def test_a_requested_tool_runs_and_its_result_goes_back_to_the_model(
 
 
 @pytest.mark.anyio
+async def test_a_failing_tool_tells_the_user_why(
+    db_session, memory_store, conversation, tools
+):
+    """
+    Regression test for a live failure. The tool event carried only
+    outcome.output, which is empty when a tool fails -- the reason lives in
+    outcome.error. So the model was told what went wrong on the very next
+    line while the user got an empty tool frame and no explanation.
+
+    Observed for real: watch_folder was called with a stale path, the
+    console printed a bare tool marker with nothing after it, and the only
+    way to find out why was to read the audit log.
+    """
+    owner, conv = conversation
+    provider = ScriptedProvider(
+        [
+            [
+                TurnEvent(
+                    type="end",
+                    tool_calls=[
+                        ToolCall(id="c1", name="broken_thing", arguments={"target": "x"})
+                    ],
+                )
+            ],
+            [TurnEvent(type="text", text="That did not work."), TurnEvent(type="end")],
+        ]
+    )
+
+    class Broken(Harmless):
+        name = "broken_thing"
+
+        async def run(self, args, context) -> ToolResult:
+            return ToolResult(ok=False, error="that folder does not exist")
+
+    registry.register(Broken())
+    agent = Agent(provider, memory_store, ToolGate())
+
+    events = [
+        e async for e in agent.respond(db_session, owner.id, conv.id, "do the thing")
+    ]
+
+    tool_event = next(e for e in events if e.type == "tool")
+    assert tool_event.ok is False
+    assert tool_event.text == "that folder does not exist"
+
+
+@pytest.mark.anyio
 async def test_a_destructive_tool_stops_the_turn_and_asks(
     db_session, memory_store, conversation, tools
 ):

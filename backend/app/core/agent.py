@@ -243,7 +243,17 @@ class Agent:
                     continue
 
                 yield AgentEvent(
-                    type="tool", tool_name=call.name, ok=outcome.ok, text=outcome.output
+                    type="tool",
+                    tool_name=call.name,
+                    ok=outcome.ok,
+                    # `or outcome.error` matters. A failed tool has an empty
+                    # output and its reason in `error`, so sending only
+                    # output showed the user an empty tool frame while the
+                    # model alone was told what went wrong. Observed live:
+                    # watch_folder failed on a stale path, the client
+                    # printed nothing, and the only way to find out why was
+                    # to read the audit log.
+                    text=outcome.output or outcome.error or "",
                 )
                 messages.append(
                     ChatMessage(
