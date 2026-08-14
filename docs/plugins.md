@@ -45,6 +45,25 @@ That's the whole contract. Check it loaded:
 Invoke-RestMethod -Uri "http://127.0.0.1:8000/plugins"
 ```
 
+### Restart, and a trap worth knowing
+
+Plugins are loaded once, at startup. Saving a file does nothing until JARVIS
+restarts.
+
+`--reload` will not save you here: uvicorn watches the directory it was
+launched from, which is `backend/`, and `plugins/` is outside it. Saving a
+plugin looks like it should reload and doesn't, which is a confusing five
+minutes. Tell uvicorn to watch it too:
+
+```powershell
+python -m uvicorn app.main:app --reload --reload-dir . --reload-dir ..\plugins
+```
+
+Loading at startup rather than on demand is deliberate: the set of tools the
+model is offered should not change midway through a conversation, and a
+plugin that appears halfway through a turn is a debugging problem nobody
+needs.
+
 There's a longer, genuinely useful example in
 [`plugins/example_units.py`](../plugins/example_units.py) — copy that rather
 than this one if you're building something real.
