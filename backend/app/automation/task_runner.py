@@ -226,7 +226,12 @@ class TaskRunner:
             return task.conversation_id
 
         conversation = Conversation(
-            user_id=task.user_id, title=f"Scheduled: {task.name}"
+            user_id=task.user_id,
+            title=f"Scheduled: {task.name}",
+            # kind="task" keeps this thread out of the user's chat. Without
+            # it, resuming "the newest conversation" picked up this one and
+            # the user found themselves talking inside a task's history.
+            kind="task",
         )
         db.add(conversation)
         db.commit()

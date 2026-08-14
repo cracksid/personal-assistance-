@@ -431,6 +431,39 @@ async def test_a_task_gets_its_own_conversation(db_session, owner, db_engine):
 
 
 @pytest.mark.anyio
+async def test_a_task_conversation_is_never_resumed_as_the_users_chat(
+    db_session, owner, db_engine
+):
+    """
+    Regression test for a live bug, and the reason Conversation.kind exists.
+
+    Giving a task its own conversation kept its turns out of the user's
+    chat -- but only in one direction. Resuming "the newest conversation"
+    picked up the task's thread, so the user's next message was appended to
+    it and the model answered out of a history the user had never seen.
+
+    Observed for real: a chat resumed "Scheduled: pulse" and started
+    replying from the task's context.
+    """
+    make_task(db_session, owner, "pulse")
+    hub = NotificationHub()
+    hub.register(FakeClient())
+
+    await runner_for(db_engine, hub, FakeAgent()).run_due()
+
+    # The task's conversation is now the newest one that exists.
+    newest = db_session.scalars(
+        select(Conversation).order_by(Conversation.id.desc())
+    ).first()
+    assert newest.kind == "task"
+
+    # ...and the user's chat must still not land in it.
+    resumed = crud.get_or_create_active_conversation(db_session, owner)
+    assert resumed.id != newest.id
+    assert resumed.kind == "chat"
+
+
+@pytest.mark.anyio
 async def test_the_same_conversation_is_reused_on_the_next_run(
     db_session, owner, db_engine
 ):

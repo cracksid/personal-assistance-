@@ -74,6 +74,19 @@ class Conversation(Base):
     # holds the id of a row in the users table.
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     title: Mapped[str | None] = mapped_column(String(200), default=None)
+
+    # "chat" -- something the user is talking in.
+    # "task" -- a scheduled task's own thread (Phase 11b).
+    #
+    # This column exists because of a real bug. A task gets its own
+    # conversation so its machine-generated turns stay out of the user's
+    # chat, but that isolation only worked one way: resuming "the newest
+    # conversation" happily picked up a task's thread, and the user's next
+    # message was appended to it. Observed live -- a chat resumed
+    # "Scheduled: pulse", and the model started answering out of the task's
+    # history instead of the user's.
+    kind: Mapped[str] = mapped_column(String(20), default="chat")
+
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     # relationship() is the Python-side convenience built on that foreign

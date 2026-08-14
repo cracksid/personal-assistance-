@@ -53,10 +53,18 @@ def get_or_create_active_conversation(db: Session, user: User) -> Conversation:
 
     Long-term memory (the facts table) is separate and survives regardless --
     it is not tied to any conversation.
+
+    kind == "chat" is load-bearing, not decoration. A scheduled task has its
+    own conversation, and without this filter "the newest conversation" was
+    sometimes the task's -- so the user's next message landed in it and the
+    model answered out of a thread the user had never seen. Found live.
     """
     latest = db.scalars(
         select(Conversation)
-        .where(Conversation.user_id == user.id)
+        .where(
+            Conversation.user_id == user.id,
+            Conversation.kind == "chat",
+        )
         .order_by(Conversation.id.desc())
         .limit(1)
     ).first()
