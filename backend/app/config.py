@@ -208,6 +208,17 @@ class Settings(BaseSettings):
     # running observer, so the database stays the only state.
     watch_sync_seconds: int = 30
 
+    # --- Plugins -----------------------------------------------------------
+    # Whether to load plugins at all. A plugin is ordinary Python running in
+    # this process with this process's permissions -- there is no sandbox --
+    # so this switch exists to turn the whole mechanism off.
+    plugins_enabled: bool = True
+
+    # Folder that plugin .py files are read from. Deliberately outside
+    # backend/app: a plugin is something you drop in, not something you add
+    # to the source tree.
+    plugins_dir: str = str(PROJECT_ROOT / "plugins")
+
     # --- Vision ------------------------------------------------------------
     # Which engine answers questions about images: anthropic | ollama
     vision_provider: str = "anthropic"

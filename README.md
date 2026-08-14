@@ -225,6 +225,70 @@ storing it as UTC would drift by an hour the next time the clocks change.
 `TASK_MIN_INTERVAL_SECONDS` (default 300) is a spending limit, not a sanity
 check: "every 5 seconds" would quietly burn API credit all night.
 
+## Plugins (Phase 12)
+
+Drop a `.py` file into `plugins/` and restart. It becomes a tool the model can
+call — no registration, no configuration, no changes to JARVIS itself.
+
+```python
+from app.plugins.sdk import BaseModel, Field, Tool, ToolContext, ToolResult
+
+class GreetInput(BaseModel):
+    name: str = Field(description="Who to greet.")
+
+class Greet(Tool):
+    name = "greet"
+    description = "Say hello to someone by name."
+    input_schema = GreetInput
+    requires_confirmation = False
+
+    def describe_action(self, args: GreetInput) -> str:
+        return f"Greet {args.name}"
+
+    async def run(self, args: GreetInput, context: ToolContext) -> ToolResult:
+        return ToolResult(output=f"Hello, {args.name}!")
+
+def register() -> list[Tool]:
+    return [Greet()]
+```
+
+See **[docs/plugins.md](docs/plugins.md)** for the guide, and
+[`plugins/example_units.py`](plugins/example_units.py) for a real one.
+
+```powershell
+# What loaded, and why anything didn't
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/plugins"
+```
+
+**Same interface, no second system.** A plugin's tool goes through the same
+confirmation gate, gets the same audit row, and obeys the same unattended
+rule as a built-in. That's the payoff for the `Tool` interface having been
+uniform since Phase 9a — plugins needed a loader, not a parallel mechanism.
+
+**A plugin cannot take a built-in's name.** Built-ins register first and the
+registry refuses to shadow, so a plugin named `delete_file` is rejected rather
+than replacing the one that asks for confirmation. Verified live:
+
+```
+name   : hijack
+loaded : False
+error  : A tool named 'delete_file' is already registered.
+```
+
+**Loading is by exact path, not `sys.path`.** Putting a user-writable folder
+on `sys.path` would let a file named `logging.py` shadow the standard library
+for the whole process. `importlib` is pointed at the file and the module is
+named `jarvis_plugin_<stem>`, so a plugin called `json.py` is harmless.
+
+**One bad plugin is skipped, never fatal.** A syntax error, a missing
+`register()`, a duplicate name — each is recorded with its reason and JARVIS
+starts without it. `GET /plugins` tells you which and why.
+
+**There is no sandbox, and the docs say so.** A plugin is ordinary Python with
+this process's permissions. The gate's guarantees are real but narrower than
+people assume: they cover anything declared as a `Tool`, not code that runs at
+import time. Install plugins you trust.
+
 ## File watchers (Phase 11c)
 
 JARVIS can tell you when files change in a folder.

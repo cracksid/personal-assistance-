@@ -285,6 +285,47 @@ picked it up two seconds later.
 Also fixed here: APScheduler was never added to requirements.txt in Phase
 11a. Both it and watchdog are now pinned.
 
-Phase 11 is complete. Next is Phase 12 (plugins: loader, SDK, docs).
+Phase 11 is complete.
+
+Phase 12 (plugins) complete: a .py file dropped into plugins/ becomes a
+tool, via importlib pointed at an exact path -- NOT by adding the folder to
+sys.path, which would let a plugin named logging.py shadow the standard
+library for the whole process. Modules are named jarvis_plugin_<stem>;
+there is a test asserting the real json module survives a plugin called
+json.py.
+
+The phase needed a loader and nothing else, because the Tool interface has
+been uniform since 9a. A plugin's tool goes through the same gate, audit
+log and unattended rule as a built-in. That is CLAUDE.md's "same interface,
+no second system" actually paying off.
+
+Contract: a module-level register() -> list[Tool]. Explicit rather than
+scanning for Tool subclasses, which would silently promote a base class or
+an imported reference into a live tool.
+
+Built-ins register first and registry.register refuses to shadow, so a
+plugin cannot take a built-in's name. Verified live: a plugin declaring
+delete_file with requires_confirmation=False was rejected and the real one
+survived intact.
+
+Every failure is captured as a PluginReport rather than raised -- a syntax
+error, missing register(), duplicate name or import-time exception is
+skipped with its reason recorded, and GET /plugins hands that back. A
+user-controlled folder must never be able to stop JARVIS starting.
+
+Plugins load in main.py's lifespan, not at registry import, so the test
+suite never executes third-party code.
+
+Honest limitation, documented rather than papered over: there is NO
+sandbox. A plugin is ordinary Python with the process's permissions. The
+gate's guarantees cover anything declared as a Tool; code that runs at
+import time is outside all of them. There is deliberately no
+install-plugin endpoint -- that would be an RCE feature one injected fetch
+away.
+
+Next is Phase 13 (frontend: React chat UI, settings, memory viewer). Note
+for that phase: there is currently no way to start a NEW conversation --
+resuming the newest is right for "close the tab and come back", wrong for
+"drop this thread". A "New chat" control belongs there.
 
 Update this line at the end of every phase.

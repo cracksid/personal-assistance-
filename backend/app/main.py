@@ -22,6 +22,7 @@ from app.db.session import SessionLocal
 from app.errors import register_exception_handlers
 from app.logging_config import setup_logging
 from app.middleware import log_requests
+from app.plugins.loader import load_plugins
 
 # Configure logging before anything else runs, so startup itself is logged.
 setup_logging()
@@ -71,6 +72,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     for us because it is passed to FastAPI(lifespan=...) below.
     """
     _heal_memory_index()
+
+    # Plugins load here rather than at import, for two reasons. Importing
+    # the registry must not execute third-party code as a side effect --
+    # the test suite imports it constantly. And the built-in tools are
+    # already registered by then, so a plugin cannot claim a built-in's
+    # name: registry.register refuses to shadow, and the plugin is the one
+    # that loses.
+    load_plugins()
 
     # The scheduler needs a running event loop, which exists by the time
     # lifespan runs but not at import. Starting it here also means it stops
