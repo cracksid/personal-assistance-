@@ -696,6 +696,19 @@ main::-webkit-scrollbar-thumb {
   outline: none;
 }
 
+/* Matches the transcript's scrollbar, for the rare long message. */
+.composer textarea {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cyan-dim) transparent;
+}
+.composer textarea::-webkit-scrollbar {
+  width: 8px;
+}
+.composer textarea::-webkit-scrollbar-thumb {
+  background: var(--cyan-dim);
+  border-radius: 4px;
+}
+
 .composer button {
   align-self: flex-end;
   padding: 13px 22px;

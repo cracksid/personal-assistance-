@@ -12,6 +12,9 @@
 
 import { KeyboardEvent, useEffect, useRef, useState } from "react";
 
+/** Tallest the box grows before it starts scrolling instead. */
+const MAX_HEIGHT = 200;
+
 interface Props {
   onSend: (text: string) => void;
   disabled: boolean;
@@ -29,7 +32,12 @@ export function Composer({ onSend, disabled, busy }: Props) {
     const box = boxRef.current;
     if (!box) return;
     box.style.height = "auto";
-    box.style.height = `${Math.min(box.scrollHeight, 200)}px`;
+    const wanted = box.scrollHeight;
+    box.style.height = `${Math.min(wanted, MAX_HEIGHT)}px`;
+    // Scroll only once the box has stopped growing. Leaving overflow on
+    // permanently gives a one-line input a full scrollbar with arrows,
+    // which looks broken and steals horizontal space for nothing.
+    box.style.overflowY = wanted > MAX_HEIGHT ? "auto" : "hidden";
   }, [text]);
 
   function submit() {
