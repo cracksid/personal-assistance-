@@ -6,9 +6,10 @@
  * piece of behaviour of its own: keeping the view scrolled to the bottom.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Composer } from "./components/Composer";
+import { Panel } from "./components/Panel";
 import { Reactor } from "./components/Reactor";
 import { ShaderBackground } from "./components/ShaderBackground";
 import { Transcript } from "./components/Transcript";
@@ -26,6 +27,7 @@ export default function App() {
   } = useJarvis();
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
 
   // Scroll down whenever anything is added. Runs after the browser has laid
   // the new content out, which is exactly what useEffect guarantees --
@@ -57,6 +59,15 @@ export default function App() {
           </div>
         </div>
 
+        <div className="actions">
+        <button
+          className="panel-open"
+          onClick={() => setPanelOpen(true)}
+          title="Settings and memory"
+        >
+          ⚙ CONFIG
+        </button>
+
         <button
           className="new-chat"
           onClick={newConversation}
@@ -70,7 +81,10 @@ export default function App() {
         >
           NEW THREAD
         </button>
+        </div>
       </header>
+
+      <Panel open={panelOpen} onClose={() => setPanelOpen(false)} />
 
       <main>
         <Transcript entries={entries} onAnswer={answerConfirmation} />

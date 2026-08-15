@@ -54,6 +54,8 @@ export default defineConfig({
       "/ws": { target: backend, ws: true },
       "/tools": { target: backend },
       "/plugins": { target: backend },
+      "/settings": { target: backend },
+      "/memory": { target: backend },
       "/voice": { target: backend },
       "/vision": { target: backend },
       "/health": { target: backend },

@@ -266,6 +266,51 @@ this thread", and with no way to drop one, a stale detail followed you around
 for good — which is exactly what happened during Phase 11 testing, where the
 model kept answering out of a thread that had drifted.
 
+## Settings and memory (Phase 13b)
+
+`⚙ CONFIG` in the header opens a panel with two tabs.
+
+**Settings** changes how JARVIS behaves without editing `.env` or restarting
+— provider, model, reasoning effort, whether tools are enabled, how many
+facts get recalled. Switching from a local model to Claude is a dropdown.
+
+**Secrets are not on that page and cannot be.** Not because they are filtered
+out on the way to the browser, but because the allow-list in
+`settings_store.py` never contained them — there is no code path from an HTTP
+request to a `SecretStr` field. Verified:
+
+```
+PATCH /settings {"changes":{"anthropic_api_key":"sk-ant-nope"}}
+→ 400 'anthropic_api_key' is not a setting that can be changed here.
+```
+
+**An allow-list, not a deny-list.** A deny-list gets this wrong exactly once
+and then it is wrong forever: someone adds a setting next year, forgets to
+deny it, and it is editable over HTTP. Forgetting to *allow* something means
+it is not editable, which is the safe direction to fail. `fs_root` is a real
+setting and is deliberately not on the list — widening the filesystem sandbox
+should require opening `.env` on purpose.
+
+Changes are stored in the database and layered over `.env` at startup, so
+`.env` stays the floor and nothing ever rewrites the file holding your key.
+
+**Memory** lists everything JARVIS has remembered about you, with a delete
+button on each.
+
+That button is a feature, not a convenience. Facts are extracted from
+conversation by a model, and models are wrong sometimes. Before this, a wrong
+fact was permanent, invisible, and quietly shaped every later answer — the
+only way to see the table was a SQL client. Memory you cannot inspect is
+memory you cannot trust, and memory you cannot correct is worse than none.
+
+The first run of this panel found three facts recorded from a hallucinated
+directory listing (`File 1 is file1.txt`) that a local model had invented.
+
+Deleting removes the row **and then** the vector index entry, in that order.
+If the second fails, a deleted fact keeps being recalled — visible, and fixed
+by `POST /memory/rebuild`. The other order would lose the index entry while
+the row survived, so the next rebuild would silently bring the fact back.
+
 ## Plugins (Phase 12)
 
 Drop a `.py` file into `plugins/` and restart. It becomes a tool the model can

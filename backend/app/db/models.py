@@ -302,6 +302,43 @@ class WatchedFolder(Base):
     user: Mapped["User"] = relationship(back_populates="watched_folders")
 
 
+class SettingOverride(Base):
+    """
+    A setting changed from the UI, overriding the value in .env.
+
+    WHY THE DATABASE AND NOT .env.
+
+    The obvious implementation of a settings page is to rewrite .env. That
+    file holds the API key, and having an HTTP endpoint that rewrites the
+    file containing the secrets is a bad trade for the convenience -- one
+    bug in the writer and the key is mangled, logged, or lost.
+
+    So .env stays the floor and this table is a layer on top of it. Secrets
+    are never in here: the API deliberately refuses to write any key it does
+    not recognise as safe, and secret-typed settings are not in that list at
+    all. Anything you can change from the UI is something you would be happy
+    to read out loud.
+
+    Values are stored as text and validated back into their real types on
+    the way in, because Settings has validate_assignment=True. "banana" for
+    an int field is rejected at the API rather than crashing something at
+    the moment it is next read.
+    """
+
+    __tablename__ = "setting_overrides"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # The Settings field name, e.g. "llm_provider".
+    key: Mapped[str] = mapped_column(String(60), unique=True)
+
+    # Stored as text regardless of the field's real type. SQLite has no
+    # union type, and the schema would otherwise need a column per shape.
+    value: Mapped[str] = mapped_column(Text)
+
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
 class AuditLog(Base):
     """
     One row per tool execution.

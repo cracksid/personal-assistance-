@@ -260,7 +260,16 @@ class Settings(BaseSettings):
     # .env file at the absolute path computed at the top of this module, using
     # UTF-8 text encoding. If a variable isn't set there or in the real
     # environment, the default declared above is used instead.
-    model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding="utf-8")
+    #
+    # validate_assignment=True makes `settings.llm_model = "..."` run the
+    # same validation as loading it from .env. That matters from Phase 13b
+    # onwards, where the settings page assigns to these fields at runtime:
+    # without it, a stored override of "banana" for an int field would be
+    # accepted silently and blow up later, somewhere unrelated, at the
+    # moment the value is next read.
+    model_config = SettingsConfigDict(
+        env_file=ENV_FILE, env_file_encoding="utf-8", validate_assignment=True
+    )
 
 
 # Created once, at import time, and reused everywhere via `from app.config import settings`.

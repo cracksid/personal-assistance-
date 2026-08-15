@@ -23,11 +23,30 @@ from app.errors import register_exception_handlers
 from app.logging_config import setup_logging
 from app.middleware import log_requests
 from app.plugins.loader import load_plugins
+from app import settings_store
 
 # Configure logging before anything else runs, so startup itself is logged.
 setup_logging()
 
 logger = logging.getLogger(__name__)
+
+
+def _apply_saved_settings() -> None:
+    """
+    Layer overrides saved from the settings page onto the .env values.
+
+    Failure here must never stop startup: a bad stored value should leave
+    JARVIS running on its .env configuration, which is exactly what the
+    file is for.
+    """
+    try:
+        db = SessionLocal()
+        try:
+            settings_store.apply_overrides(db)
+        finally:
+            db.close()
+    except Exception:
+        logger.error("Could not apply saved settings", exc_info=True)
 
 
 def _heal_memory_index() -> None:
@@ -71,6 +90,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     server starts, everything after runs once as it stops. FastAPI calls it
     for us because it is passed to FastAPI(lifespan=...) below.
     """
+    # Settings saved from the UI are layered over .env before anything reads
+    # them, so a provider chosen last week is in force by the time the first
+    # connection arrives.
+    _apply_saved_settings()
+
     _heal_memory_index()
 
     # Plugins load here rather than at import, for two reasons. Importing

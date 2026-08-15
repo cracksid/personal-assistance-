@@ -356,6 +356,32 @@ and New chat moving thread #9 -> #14.
 Note: uvicorn --reload watches the directory it was launched from, so
 plugin and frontend edits need --reload-dir or a restart.
 
-Next is Phase 13b: settings and the memory viewer.
+Phase 13b complete: a settings page and a memory viewer, behind ⚙ CONFIG.
+
+SETTINGS ARE STORED IN THE DATABASE, NOT BY REWRITING .env. That file holds
+the API key, and an HTTP endpoint that rewrites it is one bug away from
+mangling or leaking the key. .env stays the floor; setting_overrides is a
+layer applied over it at startup.
+
+An ALLOW-LIST (settings_store.EDITABLE), not a deny-list. A deny-list gets
+it wrong once and stays wrong -- a setting added next year is editable by
+default. Forgetting to allow means not editable, which fails safe. Secrets
+are not on the list, so there is no path from HTTP to a SecretStr field;
+fs_root is deliberately excluded too. Settings gained
+validate_assignment=True so a bad value is refused at the API instead of
+crashing later somewhere unrelated.
+
+MemoryStore.forget deletes the ROW FIRST and the index second, because one
+of the two writes can fail and only one failure direction is survivable:
+row-first leaves the index holding a deleted fact, which is visible and
+fixed by rebuild_index; index-first leaves the row, so the next rebuild
+silently resurrects the fact the user just deleted.
+
+The memory viewer justified itself on first run against the real database:
+three facts extracted from a directory listing llama3.2 had HALLUCINATED
+("File 1 is file1.txt") had been stored as durable memory and were being
+fed into every later prompt.
+
+Next is Phase 14 (Electron desktop wrapper).
 
 Update this line at the end of every phase.

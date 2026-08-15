@@ -231,6 +231,47 @@ class MemoryStore:
             logger.error("Could not count the memory index", exc_info=True)
             return 0
 
+    def forget(self, db: Session, user_id: int, fact_id: int) -> str | None:
+        """
+        Delete one fact. Returns its text, or None if there was no such fact.
+
+        THE ROW GOES FIRST, THE INDEX SECOND, AND THAT ORDER MATTERS.
+
+        Two stores hold this fact: the facts table, which is the source of
+        truth, and the Chroma index, which is derived from it. Either write
+        can fail, so one of them has to be first and the question is which
+        failure is survivable.
+
+        Row first: if the index delete then fails, the index holds a fact
+        the database does not. That is visible -- a deleted fact keeps being
+        recalled -- and rebuild_index() fixes it completely.
+
+        Index first: if the row delete then fails, the database holds a fact
+        the index has lost. That is invisible, because the symptom is
+        silence, and the next rebuild_index() puts it straight back. The
+        user deletes something, watches it disappear, and it returns.
+
+        So: source of truth first, derived data second.
+        """
+        fact = db.get(Fact, fact_id)
+        if fact is None or fact.user_id != user_id:
+            return None
+
+        content = fact.content
+        db.delete(fact)
+        db.commit()
+
+        try:
+            self._collection.delete(ids=[str(fact_id)])
+        except Exception:
+            # Logged rather than raised: the fact IS deleted as far as the
+            # source of truth is concerned, and telling the user it failed
+            # would be untrue. rebuild_index() reconciles the leftover.
+            logger.error("Fact %s deleted, but the index still has it", fact_id, exc_info=True)
+
+        logger.info("Forgot fact %s", fact_id)
+        return content
+
     def rebuild_index(self, db: Session) -> int:
         """
         Recreate the whole vector index from the facts table.
