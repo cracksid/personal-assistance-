@@ -1,30 +1,37 @@
 /*
- * Plain CSS, no framework.
+ * The HUD.
  *
- * Tailwind or a component library would be reasonable and is not needed for
- * one screen. This is a few hundred lines that anyone can read without
- * learning a second vocabulary first -- the same reason CLAUDE.md asks for
- * boring code everywhere else.
+ * Plain CSS, no framework. A few hundred readable lines beat learning a
+ * second vocabulary, which is the same argument CLAUDE.md makes for boring
+ * code everywhere else.
  *
- * Custom properties (the --name values) are CSS variables. Defining the
- * palette once means the dark theme below is a handful of overrides rather
- * than a second stylesheet.
+ * THE ONE RULE EVERYTHING HERE OBEYS: the chrome may glow, the text may
+ * not. Cyan-on-navy at full saturation is genuinely hard to read for any
+ * length of time, so message text is near-white and calm, and the effects
+ * live in borders, labels, panels and the background. A beautiful interface
+ * you cannot read a paragraph in is a failed interface.
  */
 
 :root {
-  --bg: #0f1115;
-  --panel: #161a21;
-  --panel-2: #1d222b;
-  --border: #262c37;
-  --text: #e6e9ef;
-  --muted: #8b94a7;
-  --accent: #4f8cff;
-  --danger: #ff6b5d;
-  --warn: #f0b429;
-  --ok: #3fb950;
+  --bg: #050a12;
+  --panel: rgba(10, 22, 38, 0.72);
+  --panel-solid: #0a1626;
+  --line: rgba(64, 190, 255, 0.22);
+  --line-bright: rgba(64, 190, 255, 0.55);
 
-  --radius: 12px;
-  --gap: 14px;
+  --text: #dceaf7;
+  --muted: #6f90ad;
+  --cyan: #3fd0ff;
+  --cyan-dim: #1b7fa8;
+  --amber: #ffb648;
+  --red: #ff5f56;
+  --green: #3fe08a;
+
+  --glow: 0 0 12px rgba(63, 208, 255, 0.35);
+  --radius: 4px;
+
+  --mono: "Consolas", "SF Mono", "Cascadia Mono", monospace;
+  --sans: "Segoe UI", system-ui, -apple-system, sans-serif;
 
   color-scheme: dark;
 }
@@ -41,180 +48,458 @@ body,
 }
 
 body {
-  background: var(--bg);
+  /* The fallback when WebGL is unavailable or motion is reduced. */
+  background:
+    radial-gradient(ellipse at 50% 40%, #0b2038 0%, #050a12 70%),
+    var(--bg);
   color: var(--text);
-  font: 15px/1.55 "Segoe UI", system-ui, -apple-system, sans-serif;
+  font: 15px/1.6 var(--sans);
+  overflow: hidden;
+}
+
+.shader-bg {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  /* Behind everything, and never intercepting a click. */
+  pointer-events: none;
 }
 
 .app {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   height: 100%;
-  max-width: 820px;
+  max-width: 900px;
   margin: 0 auto;
-  padding: 0 16px;
+  padding: 0 20px;
 }
 
-/* --- header --------------------------------------------------------- */
+/* --- header ---------------------------------------------------------- */
 
 header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 4px;
-  border-bottom: 1px solid var(--border);
+  padding: 16px 0 14px;
+  border-bottom: 1px solid var(--line);
+  position: relative;
+}
+
+/* A short bright segment on the header rule -- the detail that makes a
+   line look like instrumentation rather than a border. */
+header::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 140px;
+  height: 1px;
+  background: var(--cyan);
+  box-shadow: var(--glow);
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
+}
+
+.titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 h1 {
-  font-size: 16px;
-  letter-spacing: 0.08em;
+  font: 600 15px/1 var(--mono);
+  letter-spacing: 0.24em;
   margin: 0;
-  text-transform: uppercase;
+  color: var(--cyan);
+  text-shadow: var(--glow);
 }
 
-/* Connection state, without a sentence taking up room for it. */
-.dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--muted);
-}
-.dot.open {
-  background: var(--ok);
-  box-shadow: 0 0 8px var(--ok);
-}
-.dot.closed {
-  background: var(--danger);
-}
-
-.conversation {
+.subtitle {
+  font: 10px/1 var(--mono);
+  letter-spacing: 0.18em;
   color: var(--muted);
-  font-size: 12px;
 }
+
+/* --- the reactor ----------------------------------------------------- */
+
+.reactor {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.reactor svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.reactor .ring {
+  fill: none;
+  stroke: var(--cyan-dim);
+  stroke-width: 2;
+  transform-origin: 50% 50%;
+}
+
+/* Three rings, three speeds, alternating direction. Opposing directions
+   are what stop it reading as one solid spinning object. */
+.reactor .outer {
+  animation: spin 14s linear infinite;
+}
+.reactor .mid {
+  animation: spin 9s linear infinite reverse;
+  stroke-width: 1.5;
+}
+.reactor .inner {
+  animation: spin 22s linear infinite;
+  stroke-width: 1;
+}
+
+.reactor .core {
+  fill: rgba(63, 208, 255, 0.12);
+  stroke: var(--cyan);
+  stroke-width: 1.5;
+  animation: pulse 3.2s ease-in-out infinite;
+}
+
+.reactor .triangle {
+  fill: rgba(63, 208, 255, 0.85);
+  filter: drop-shadow(0 0 6px rgba(63, 208, 255, 0.8));
+  animation: pulse 3.2s ease-in-out infinite;
+}
+
+.reactor .coil {
+  stroke: var(--cyan-dim);
+  stroke-width: 2;
+}
+
+/* Busy: everything speeds up. The most prominent thing on screen carries
+   the most important state, rather than a spinner somewhere else. */
+.reactor.active .outer {
+  animation-duration: 3s;
+}
+.reactor.active .mid {
+  animation-duration: 2s;
+}
+.reactor.active .inner {
+  animation-duration: 5s;
+}
+.reactor.active .core,
+.reactor.active .triangle {
+  animation-duration: 1s;
+}
+
+.reactor.connecting .ring,
+.reactor.connecting .coil {
+  stroke: var(--amber);
+}
+.reactor.connecting .core {
+  stroke: var(--amber);
+}
+.reactor.connecting .triangle {
+  fill: rgba(255, 182, 72, 0.85);
+  filter: drop-shadow(0 0 6px rgba(255, 182, 72, 0.7));
+}
+
+.reactor.closed .ring,
+.reactor.closed .coil,
+.reactor.closed .core {
+  stroke: var(--red);
+}
+.reactor.closed .triangle {
+  fill: rgba(255, 95, 86, 0.7);
+  filter: none;
+}
+.reactor.closed .ring {
+  animation-play-state: paused;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* --- buttons --------------------------------------------------------- */
 
 button {
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
+  background: rgba(63, 208, 255, 0.06);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--cyan);
   cursor: pointer;
-  font: inherit;
-  padding: 7px 14px;
-}
-button:hover:not(:disabled) {
-  border-color: var(--accent);
-}
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-button.danger {
-  background: var(--danger);
-  border-color: var(--danger);
-  color: #1a0f0d;
-  font-weight: 600;
+  font: 11px/1 var(--mono);
+  letter-spacing: 0.14em;
+  padding: 10px 16px;
+  transition: all 0.18s ease;
 }
 
-/* --- transcript ----------------------------------------------------- */
+button:hover:not(:disabled) {
+  background: rgba(63, 208, 255, 0.14);
+  border-color: var(--cyan);
+  box-shadow: var(--glow);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+button.danger {
+  background: rgba(255, 182, 72, 0.1);
+  border-color: rgba(255, 182, 72, 0.5);
+  color: var(--amber);
+}
+button.danger:hover:not(:disabled) {
+  background: rgba(255, 182, 72, 0.2);
+  border-color: var(--amber);
+  box-shadow: 0 0 12px rgba(255, 182, 72, 0.35);
+}
+
+/* --- transcript ------------------------------------------------------ */
 
 main {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 4px;
+  padding: 24px 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cyan-dim) transparent;
+}
+
+main::-webkit-scrollbar {
+  width: 8px;
+}
+main::-webkit-scrollbar-thumb {
+  background: var(--cyan-dim);
+  border-radius: 4px;
 }
 
 .transcript {
   display: flex;
   flex-direction: column;
-  gap: var(--gap);
+  gap: 16px;
 }
 
-.empty {
-  color: var(--muted);
-  margin-top: 12vh;
-  text-align: center;
+/* Everything arrives with the same short rise-and-fade, which is what
+   makes a stream of separate elements feel like one system responding. */
+.transcript > * {
+  animation: arrive 0.32s ease-out both;
 }
-.empty h2 {
-  color: var(--text);
-  letter-spacing: 0.1em;
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
 }
-.empty ul {
-  display: inline-block;
-  text-align: left;
+
+.row {
+  display: flex;
 }
-.empty li {
-  margin: 6px 0;
+.row.user {
+  justify-content: flex-end;
+}
+.row.assistant {
+  justify-content: flex-start;
 }
 
 .bubble {
   border-radius: var(--radius);
-  max-width: 90%;
-  padding: 11px 15px;
-  white-space: pre-wrap; /* keep the model's line breaks */
+  max-width: 86%;
+  padding: 12px 16px;
+  position: relative;
   word-wrap: break-word;
 }
 
 .bubble.user {
-  align-self: flex-end;
-  background: var(--accent);
-  color: #06122b;
+  background: rgba(63, 208, 255, 0.1);
+  border: 1px solid var(--line-bright);
+  color: var(--text);
+  /* A clipped corner, the cheapest way to say "panel" not "speech". */
+  clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px);
 }
 
 .bubble.assistant {
-  align-self: flex-start;
   background: var(--panel);
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--cyan-dim);
+  backdrop-filter: blur(6px);
 }
 
-/* Blinking caret while a reply is still arriving. */
+/* Text stays calm and readable. The glow is for chrome, not prose. */
+.prose p {
+  margin: 0 0 10px;
+}
+.prose p:last-child {
+  margin-bottom: 0;
+}
+.prose ul,
+.prose ol {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+.prose li {
+  margin: 4px 0;
+}
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  color: var(--cyan);
+  font: 600 12px/1.4 var(--mono);
+  letter-spacing: 0.1em;
+  margin: 12px 0 6px;
+  text-transform: uppercase;
+}
+.prose code,
+.tool code,
+.confirmation code {
+  background: rgba(63, 208, 255, 0.1);
+  border-radius: 3px;
+  color: var(--cyan);
+  font: 13px/1.4 var(--mono);
+  padding: 1px 5px;
+}
+.prose strong {
+  color: #fff;
+}
+
+.code-block {
+  background: rgba(3, 10, 20, 0.85);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin: 10px 0;
+  overflow-x: auto;
+  padding: 12px 14px;
+  position: relative;
+}
+.code-block code {
+  background: none;
+  color: #b9e8ff;
+  font: 13px/1.5 var(--mono);
+  padding: 0;
+  white-space: pre;
+}
+.code-lang {
+  color: var(--muted);
+  font: 10px/1 var(--mono);
+  letter-spacing: 0.12em;
+  position: absolute;
+  right: 10px;
+  text-transform: uppercase;
+  top: 8px;
+}
+
 .caret {
   animation: blink 1s steps(2, start) infinite;
-  background: var(--text);
+  background: var(--cyan);
+  box-shadow: var(--glow);
   display: inline-block;
-  height: 1em;
-  margin-left: 2px;
+  height: 0.95em;
+  margin-left: 3px;
   vertical-align: text-bottom;
   width: 7px;
 }
 @keyframes blink {
   to {
-    visibility: hidden;
+    opacity: 0;
   }
 }
 
-/* --- tools ---------------------------------------------------------- */
+/* --- empty state ------------------------------------------------------ */
+
+.empty {
+  margin-top: 14vh;
+  text-align: center;
+}
+
+.boot-line {
+  animation: bootIn 0.7s ease-out both;
+  color: var(--cyan);
+  font: 12px/2.4 var(--mono);
+  letter-spacing: 0.3em;
+  opacity: 0.85;
+  text-shadow: var(--glow);
+}
+
+@keyframes bootIn {
+  from {
+    opacity: 0;
+    letter-spacing: 0.9em;
+    filter: blur(4px);
+  }
+}
+
+.suggestions {
+  animation: arrive 0.6s 1.6s ease-out both;
+  color: var(--muted);
+  display: inline-block;
+  font: 13px/2 var(--mono);
+  list-style: none;
+  margin-top: 26px;
+  padding: 0;
+  text-align: left;
+}
+.suggestions li::before {
+  color: var(--cyan-dim);
+  content: "› ";
+}
+
+/* --- tool rows -------------------------------------------------------- */
 
 .tool {
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--cyan-dim);
+  border-radius: var(--radius);
   font-size: 13px;
-  padding: 8px 12px;
+  padding: 9px 14px;
 }
 .tool.failed {
-  border-color: var(--danger);
+  border-color: rgba(255, 95, 86, 0.4);
+  border-left-color: var(--red);
 }
 .tool summary {
   align-items: center;
+  color: var(--muted);
   cursor: pointer;
   display: flex;
-  gap: 8px;
-  color: var(--muted);
+  font: 11px/1 var(--mono);
+  gap: 10px;
+  letter-spacing: 0.1em;
+  list-style: none;
+  text-transform: uppercase;
 }
-.tool code {
-  color: var(--text);
+.tool summary::-webkit-details-marker {
+  display: none;
+}
+.tool-icon {
+  font-size: 12px;
 }
 .tool-failed-label {
-  color: var(--danger);
+  color: var(--red);
 }
 .tool pre {
   color: var(--muted);
+  font: 12px/1.5 var(--mono);
   margin: 10px 0 2px;
   max-height: 320px;
   overflow: auto;
@@ -222,35 +507,83 @@ main {
   word-break: break-word;
 }
 
-/* --- confirmation --------------------------------------------------- */
+/* --- confirmation ----------------------------------------------------- */
 
 .confirmation {
-  background: var(--panel-2);
-  border: 1px solid var(--warn);
+  background: rgba(30, 20, 5, 0.6);
+  border: 1px solid rgba(255, 182, 72, 0.45);
   border-radius: var(--radius);
-  padding: 14px 16px;
+  padding: 16px 18px;
+  position: relative;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 0 24px rgba(255, 182, 72, 0.1);
 }
+
+/* Corner brackets, drawn with two empty elements' borders. Nothing says
+   "targeting reticle" faster and it costs no markup worth the name. */
+.confirmation::before,
+.confirmation::after {
+  border: 2px solid var(--amber);
+  content: "";
+  height: 12px;
+  position: absolute;
+  width: 12px;
+}
+.confirmation::before {
+  border-right: none;
+  border-bottom: none;
+  left: -1px;
+  top: -1px;
+}
+.confirmation::after {
+  border-left: none;
+  border-top: none;
+  bottom: -1px;
+  right: -1px;
+}
+
 .confirmation.approved,
 .confirmation.declined {
-  border-color: var(--border);
-  opacity: 0.75;
+  border-color: var(--line);
+  box-shadow: none;
+  opacity: 0.7;
+}
+.confirmation.approved::before,
+.confirmation.approved::after,
+.confirmation.declined::before,
+.confirmation.declined::after {
+  border-color: var(--muted);
 }
 
 .confirmation-head {
   align-items: center;
-  color: var(--warn);
+  color: var(--amber);
   display: flex;
-  font-size: 13px;
+  font: 10px/1 var(--mono);
   gap: 10px;
-  justify-content: space-between;
+  letter-spacing: 0.2em;
+}
+.confirmation-head code {
+  background: rgba(255, 182, 72, 0.12);
+  color: var(--amber);
+  margin-left: auto;
+}
+
+.pulse-dot {
+  animation: pulse 1.4s ease-in-out infinite;
+  background: var(--amber);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--amber);
+  height: 7px;
+  width: 7px;
 }
 
 /* The sentence being approved. Biggest thing on the card on purpose --
    approving something you did not read is the failure this UI must not
    encourage. */
 .confirmation-body {
-  font-size: 15px;
-  margin: 10px 0 14px;
+  font: 15px/1.55 var(--sans);
+  margin: 12px 0 16px;
 }
 
 .confirmation-actions {
@@ -260,75 +593,125 @@ main {
 
 .confirmation-outcome {
   color: var(--muted);
-  font-size: 13px;
+  font: 11px/1 var(--mono);
+  letter-spacing: 0.12em;
   margin: 0;
+  text-transform: uppercase;
 }
 
-/* --- notices -------------------------------------------------------- */
+/* --- notices ---------------------------------------------------------- */
 
 .notice {
-  border-left: 3px solid var(--muted);
-  border-radius: 6px;
   background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--muted);
+  border-radius: var(--radius);
   display: flex;
   flex-direction: column;
   font-size: 14px;
-  gap: 4px;
-  padding: 10px 14px;
+  gap: 5px;
+  padding: 11px 15px;
+  backdrop-filter: blur(6px);
 }
 .notice strong {
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  color: var(--muted);
+  font: 10px/1 var(--mono);
+  letter-spacing: 0.2em;
 }
 .notice.error {
-  border-left-color: var(--danger);
-  color: var(--danger);
+  border-left-color: var(--red);
+  color: #ffb3ae;
+}
+.notice.error strong {
+  color: var(--red);
 }
 .notice.reminder {
-  border-left-color: var(--warn);
+  border-left-color: var(--amber);
+}
+.notice.reminder strong {
+  color: var(--amber);
 }
 .notice.task {
-  border-left-color: var(--accent);
+  border-left-color: var(--green);
+}
+.notice.task strong {
+  color: var(--green);
 }
 .notice.file {
-  border-left-color: var(--muted);
   color: var(--muted);
 }
 
 .banner {
-  background: var(--danger);
-  border-radius: 8px;
-  color: #1a0f0d;
+  background: rgba(255, 95, 86, 0.12);
+  border: 1px solid rgba(255, 95, 86, 0.5);
+  border-radius: var(--radius);
+  color: #ffb3ae;
+  font: 11px/1.4 var(--mono);
+  letter-spacing: 0.1em;
   margin-bottom: 10px;
-  padding: 9px 14px;
+  padding: 10px 14px;
 }
 
-/* --- composer ------------------------------------------------------- */
+/* --- composer --------------------------------------------------------- */
 
 .composer {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
   display: flex;
-  gap: 10px;
-  padding: 14px 4px 20px;
+  gap: 12px;
+  padding: 16px 0 22px;
+  position: relative;
+}
+
+.composer::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: 0;
+  width: 140px;
+  height: 1px;
+  background: var(--cyan);
+  box-shadow: var(--glow);
 }
 
 .composer textarea {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: rgba(10, 22, 38, 0.6);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   color: var(--text);
   flex: 1;
-  font: inherit;
-  padding: 11px 14px;
+  font: 15px/1.5 var(--sans);
+  padding: 12px 15px;
   resize: none;
+  transition: all 0.18s ease;
+}
+.composer textarea::placeholder {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
 }
 .composer textarea:focus {
-  border-color: var(--accent);
+  border-color: var(--cyan);
+  box-shadow: var(--glow);
   outline: none;
 }
 
 .composer button {
   align-self: flex-end;
-  padding: 11px 20px;
+  padding: 13px 22px;
+}
+
+/* --- reduced motion ---------------------------------------------------
+ * Someone who has asked their system to stop animations means it. The
+ * shader does not start at all (see ShaderBackground), and everything
+ * here becomes static. The interface still works and still looks like
+ * itself -- it simply holds still. */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

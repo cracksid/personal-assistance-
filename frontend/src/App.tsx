@@ -9,6 +9,8 @@
 import { useEffect, useRef } from "react";
 
 import { Composer } from "./components/Composer";
+import { Reactor } from "./components/Reactor";
+import { ShaderBackground } from "./components/ShaderBackground";
 import { Transcript } from "./components/Transcript";
 import { useJarvis } from "./lib/useJarvis";
 
@@ -35,26 +37,38 @@ export default function App() {
 
   return (
     <div className="app">
+      <ShaderBackground />
+
       <header>
         <div className="brand">
-          <span className={`dot ${status}`} />
-          <h1>JARVIS</h1>
-          {conversationId !== null && (
-            <span className="conversation">thread #{conversationId}</span>
-          )}
+          <Reactor status={status} active={busy} />
+          <div className="titles">
+            <h1>J.A.R.V.I.S.</h1>
+            <span className="subtitle">
+              {status === "open"
+                ? busy
+                  ? "PROCESSING"
+                  : "ONLINE"
+                : status === "connecting"
+                  ? "LINKING"
+                  : "OFFLINE"}
+              {conversationId !== null && ` · THREAD ${conversationId}`}
+            </span>
+          </div>
         </div>
 
         <button
           className="new-chat"
           onClick={newConversation}
           disabled={status !== "open"}
-          // The control that did not exist until now. Resuming the newest
-          // conversation is right for "close the tab and come back" and
-          // wrong for "drop this thread" -- and with no way to drop one, a
-          // stale detail in the history followed you around for good.
+          // The control that did not exist until Phase 13. Resuming the
+          // newest conversation is right for "close the tab and come back"
+          // and wrong for "drop this thread" -- and with no way to drop
+          // one, a stale detail in the history followed you around for
+          // good.
           title="Start a new conversation"
         >
-          New chat
+          NEW THREAD
         </button>
       </header>
 
@@ -65,7 +79,7 @@ export default function App() {
 
       {status === "closed" && (
         <div className="banner">
-          Disconnected. Is the backend running? Reload the page to reconnect.
+          CONNECTION LOST — is the backend running? Reload to reconnect.
         </div>
       )}
 
