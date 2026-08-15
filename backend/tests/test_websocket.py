@@ -70,8 +70,23 @@ def failing_client(
     yield from _client_with(FailingProvider(), db_session, memory_store)
 
 
+def hello(websocket) -> int:
+    """
+    Consume the frame every connection opens with, and return the thread id.
+
+    The server announces which conversation you are in as soon as you
+    connect, so a UI can label it and so "new chat" has something visible to
+    change. Every test has to read it before whatever it actually cares
+    about.
+    """
+    frame = websocket.receive_json()
+    assert frame["type"] == "conversation"
+    return frame["id"]
+
+
 def test_websocket_streams_chunks_then_done(client: TestClient):
     with client.websocket_connect("/ws/chat") as websocket:
+        hello(websocket)
         websocket.send_text("hi")
 
         assert websocket.receive_json() == {"type": "chunk", "text": "Hel"}
@@ -83,6 +98,7 @@ def test_websocket_reports_provider_failure_without_closing(
     failing_client: TestClient,
 ):
     with failing_client.websocket_connect("/ws/chat") as websocket:
+        hello(websocket)
         websocket.send_text("hi")
         response = websocket.receive_json()
 
@@ -93,3 +109,63 @@ def test_websocket_reports_provider_failure_without_closing(
         # without reloading the page.
         websocket.send_text("again")
         assert websocket.receive_json()["type"] == "error"
+
+
+def test_new_chat_switches_to_a_fresh_conversation(client: TestClient):
+    """
+    The control that did not exist until Phase 13, and whose absence caused
+    a real problem: resuming the newest conversation forever is right for
+    "close the tab and come back" and wrong for "drop this thread". With no
+    way to drop one, a stale detail in the history followed the user around
+    and the model kept answering from it.
+    """
+    with client.websocket_connect("/ws/chat") as websocket:
+        first = hello(websocket)
+
+        websocket.send_text("remember this")
+        while websocket.receive_json()["type"] != "done":
+            pass
+
+        websocket.send_text('{"type": "new"}')
+        second = hello(websocket)
+
+        assert second != first
+
+
+def test_the_old_conversation_still_exists_after_a_new_chat(
+    client: TestClient, db_session: Session
+):
+    """"New chat" starts a thread. It does not delete one."""
+    from sqlalchemy import select
+
+    from app.db.models import Conversation, Message
+
+    with client.websocket_connect("/ws/chat") as websocket:
+        first = hello(websocket)
+        websocket.send_text("keep me")
+        while websocket.receive_json()["type"] != "done":
+            pass
+
+        websocket.send_text('{"type": "new"}')
+        hello(websocket)
+
+    assert db_session.get(Conversation, first) is not None
+    kept = db_session.scalars(
+        select(Message).where(Message.conversation_id == first)
+    ).all()
+    assert any(m.content == "keep me" for m in kept)
+
+
+def test_a_new_conversation_is_a_chat_not_a_task(client: TestClient, db_session: Session):
+    """
+    Otherwise the next connect would skip straight past it -- resuming only
+    ever picks up kind="chat".
+    """
+    from app.db.models import Conversation
+
+    with client.websocket_connect("/ws/chat") as websocket:
+        hello(websocket)
+        websocket.send_text('{"type": "new"}')
+        created = hello(websocket)
+
+    assert db_session.get(Conversation, created).kind == "chat"

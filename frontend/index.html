@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JARVIS</title>
+  </head>
+  <body>
+    <!--
+      The entire UI is rendered into this one empty div by React.
+
+      The page ships with no content: the browser loads main.tsx, React
+      builds the elements in memory, and puts them here. That is what "single
+      page app" means -- the server sends one nearly-empty HTML file, and
+      everything after that is JavaScript changing what is on screen without
+      another page load.
+    -->
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

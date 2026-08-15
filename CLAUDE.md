@@ -323,9 +323,39 @@ import time is outside all of them. There is deliberately no
 install-plugin endpoint -- that would be an RCE feature one injected fetch
 away.
 
-Next is Phase 13 (frontend: React chat UI, settings, memory viewer). Note
-for that phase: there is currently no way to start a NEW conversation --
-resuming the newest is right for "close the tab and come back", wrong for
-"drop this thread". A "New chat" control belongs there.
+Phase 13a (chat UI) complete: React + TypeScript + Vite in frontend/.
+JARVIS is usable without a browser console for the first time.
+
+Vite, not CRA (unmaintained) or Next (a server framework, and CLAUDE.md
+locks the frontend as a plain swappable web app for Electron in 14).
+
+A DEV PROXY INSTEAD OF CORS. 5173 and 8000 are different origins, and the
+standard fix -- CORS headers -- is the backend announcing it will talk to
+other origins, the opposite of "bind to 127.0.0.1". Vite forwards /ws and
+the REST paths itself, so the browser sees one origin. The app therefore
+contains no host or port at all: it opens /ws/chat and fetches /tools, and
+the same code works in production where one server serves both.
+JARVIS_BACKEND overrides the target.
+
+The WebSocket lives in one custom hook (lib/useJarvis.ts). Frames are
+translated into UI entries ON ARRIVAL rather than stored raw -- a reply is
+dozens of chunk frames and one message -- which keeps every component
+simple. Chunks append via the updater form of setState, because they arrive
+faster than React re-renders and a captured array would drop them.
+
+The chat route gained {"type":"new"} and a "conversation" frame sent on
+connect. New chat REBINDS the local conversation; the old one is untouched,
+since starting a thread is not deleting one. This was the control whose
+absence caused the Phase 11 mess where the model kept answering out of a
+drifted thread.
+
+Verified live in a browser: streaming text, a confirmation card declined
+(the card stays, showing the outcome), a failed tool showing its reason,
+and New chat moving thread #9 -> #14.
+
+Note: uvicorn --reload watches the directory it was launched from, so
+plugin and frontend edits need --reload-dir or a restart.
+
+Next is Phase 13b: settings and the memory viewer.
 
 Update this line at the end of every phase.

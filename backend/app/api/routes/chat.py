@@ -11,6 +11,7 @@ treated as a control message:
 
     {"type": "confirm", "confirmation_id": "..."}   approve a pending tool
     {"type": "cancel",  "confirmation_id": "..."}   decline it
+    {"type": "new"}                                 start a fresh conversation
 
 Server -> client. Every frame is a JSON object with a "type":
 
@@ -19,11 +20,19 @@ Server -> client. Every frame is a JSON object with a "type":
     {"type": "confirmation", "confirmation_id": ..., "description": ...}
     {"type": "done"}                                 the turn is complete
     {"type": "error",        "message": "..."}
+    {"type": "conversation", "id": 14}               which thread you are in
+
+Plus frames nobody asked for, which arrive whenever they happen:
+
+    {"type": "reminder",     "message": "..."}
+    {"type": "task_result",  "name": "...", "text": "..."}
+    {"type": "file_event",   "change": "created", "name": "..."}
 
 A "confirmation" frame means NOTHING HAS RUN. The turn has ended, and the
 tool executes only if the client sends back a "confirm".
 """
 
+import asyncio
 import json
 import logging
 
@@ -61,6 +70,10 @@ async def chat_websocket(
     owner = crud.get_or_create_owner(db)
     conversation = crud.get_or_create_active_conversation(db, owner)
 
+    # Told to the client so a UI can show which thread it is in, and so
+    # "new chat" has something visible to change.
+    await websocket.send_json({"type": "conversation", "id": conversation.id})
+
     # From here on this connection can be pushed to, which is what lets a
     # reminder arrive without anyone having asked for it.
     hub.register(websocket)
@@ -77,7 +90,18 @@ async def chat_websocket(
             control = _parse_control(raw)
 
             try:
-                if control is not None:
+                if control is not None and control["type"] == "new":
+                    # Rebinding the local is the whole implementation. The
+                    # old conversation is untouched -- "new chat" starts a
+                    # thread, it does not delete one.
+                    conversation = await asyncio.to_thread(
+                        crud.create_conversation, db, owner
+                    )
+                    logger.info("Started conversation %s", conversation.id)
+                    await websocket.send_json(
+                        {"type": "conversation", "id": conversation.id}
+                    )
+                elif control is not None:
                     await _handle_control(
                         websocket, db, gate, owner.id, conversation.id, control
                     )
@@ -126,7 +150,7 @@ def _parse_control(raw: str) -> dict | None:
         parsed = json.loads(stripped)
     except json.JSONDecodeError:
         return None
-    if isinstance(parsed, dict) and parsed.get("type") in {"confirm", "cancel"}:
+    if isinstance(parsed, dict) and parsed.get("type") in {"confirm", "cancel", "new"}:
         return parsed
     return None
 
@@ -208,6 +232,4 @@ async def _handle_control(
 
 
 async def _record(db: Session, conversation_id: int, note: str) -> None:
-    import asyncio
-
     await asyncio.to_thread(crud.add_message, db, conversation_id, "user", note)

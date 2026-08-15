@@ -1,0 +1,334 @@
+/*
+ * Plain CSS, no framework.
+ *
+ * Tailwind or a component library would be reasonable and is not needed for
+ * one screen. This is a few hundred lines that anyone can read without
+ * learning a second vocabulary first -- the same reason CLAUDE.md asks for
+ * boring code everywhere else.
+ *
+ * Custom properties (the --name values) are CSS variables. Defining the
+ * palette once means the dark theme below is a handful of overrides rather
+ * than a second stylesheet.
+ */
+
+:root {
+  --bg: #0f1115;
+  --panel: #161a21;
+  --panel-2: #1d222b;
+  --border: #262c37;
+  --text: #e6e9ef;
+  --muted: #8b94a7;
+  --accent: #4f8cff;
+  --danger: #ff6b5d;
+  --warn: #f0b429;
+  --ok: #3fb950;
+
+  --radius: 12px;
+  --gap: 14px;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.55 "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+/* --- header --------------------------------------------------------- */
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+h1 {
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+/* Connection state, without a sentence taking up room for it. */
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.dot.open {
+  background: var(--ok);
+  box-shadow: 0 0 8px var(--ok);
+}
+.dot.closed {
+  background: var(--danger);
+}
+
+.conversation {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+button {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  padding: 7px 14px;
+}
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+button.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #1a0f0d;
+  font-weight: 600;
+}
+
+/* --- transcript ----------------------------------------------------- */
+
+main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 4px;
+}
+
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.empty {
+  color: var(--muted);
+  margin-top: 12vh;
+  text-align: center;
+}
+.empty h2 {
+  color: var(--text);
+  letter-spacing: 0.1em;
+}
+.empty ul {
+  display: inline-block;
+  text-align: left;
+}
+.empty li {
+  margin: 6px 0;
+}
+
+.bubble {
+  border-radius: var(--radius);
+  max-width: 90%;
+  padding: 11px 15px;
+  white-space: pre-wrap; /* keep the model's line breaks */
+  word-wrap: break-word;
+}
+
+.bubble.user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: #06122b;
+}
+
+.bubble.assistant {
+  align-self: flex-start;
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
+
+/* Blinking caret while a reply is still arriving. */
+.caret {
+  animation: blink 1s steps(2, start) infinite;
+  background: var(--text);
+  display: inline-block;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  width: 7px;
+}
+@keyframes blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+/* --- tools ---------------------------------------------------------- */
+
+.tool {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+  padding: 8px 12px;
+}
+.tool.failed {
+  border-color: var(--danger);
+}
+.tool summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  color: var(--muted);
+}
+.tool code {
+  color: var(--text);
+}
+.tool-failed-label {
+  color: var(--danger);
+}
+.tool pre {
+  color: var(--muted);
+  margin: 10px 0 2px;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* --- confirmation --------------------------------------------------- */
+
+.confirmation {
+  background: var(--panel-2);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.confirmation.approved,
+.confirmation.declined {
+  border-color: var(--border);
+  opacity: 0.75;
+}
+
+.confirmation-head {
+  align-items: center;
+  color: var(--warn);
+  display: flex;
+  font-size: 13px;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+/* The sentence being approved. Biggest thing on the card on purpose --
+   approving something you did not read is the failure this UI must not
+   encourage. */
+.confirmation-body {
+  font-size: 15px;
+  margin: 10px 0 14px;
+}
+
+.confirmation-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.confirmation-outcome {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+/* --- notices -------------------------------------------------------- */
+
+.notice {
+  border-left: 3px solid var(--muted);
+  border-radius: 6px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  gap: 4px;
+  padding: 10px 14px;
+}
+.notice strong {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.notice.error {
+  border-left-color: var(--danger);
+  color: var(--danger);
+}
+.notice.reminder {
+  border-left-color: var(--warn);
+}
+.notice.task {
+  border-left-color: var(--accent);
+}
+.notice.file {
+  border-left-color: var(--muted);
+  color: var(--muted);
+}
+
+.banner {
+  background: var(--danger);
+  border-radius: 8px;
+  color: #1a0f0d;
+  margin-bottom: 10px;
+  padding: 9px 14px;
+}
+
+/* --- composer ------------------------------------------------------- */
+
+.composer {
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  padding: 14px 4px 20px;
+}
+
+.composer textarea {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  flex: 1;
+  font: inherit;
+  padding: 11px 14px;
+  resize: none;
+}
+.composer textarea:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.composer button {
+  align-self: flex-end;
+  padding: 11px 20px;
+}

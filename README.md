@@ -225,6 +225,47 @@ storing it as UTC would drift by an hour the next time the clocks change.
 `TASK_MIN_INTERVAL_SECONDS` (default 300) is a spending limit, not a sanity
 check: "every 5 seconds" would quietly burn API credit all night.
 
+## The interface (Phase 13a)
+
+A React chat UI, so JARVIS is usable without a browser console.
+
+```powershell
+# Terminal 1 - the backend
+cd backend
+..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+
+# Terminal 2 - the UI
+cd frontend
+npm install      # first time only
+npm run dev      # then open http://localhost:5173
+```
+
+**A dev proxy instead of CORS.** Vite serves on 5173 and the API is on 8000 —
+different origins, which the browser blocks. The usual fix is CORS headers on
+the backend, and that is the backend announcing it will talk to other origins,
+which is the opposite of this project's "bind to 127.0.0.1" posture. Instead
+Vite forwards `/ws` and the REST paths itself, so the browser sees one origin
+and the backend never learns the frontend exists. The app contains no host or
+port anywhere as a result — it opens `/ws/chat` and fetches `/tools`.
+
+**Everything the socket can say has a shape on screen.** Streaming text lands
+in a bubble with a caret while it is still arriving. Tool calls collapse into
+a one-line row you can expand — a directory listing should not bury the reply.
+A failed tool shows its reason. Reminders, scheduled-task results and file
+events appear as their own notices, since none of them are replies to anything.
+
+**Confirmations are cards you act on, and they stay afterwards.** The sentence
+from `describe_action()` is the largest thing on the card, because approving
+something you did not read is the failure this UI must not encourage. After
+you answer, the card remains with the outcome — so the transcript still shows
+a destructive action was proposed and what was decided.
+
+**New chat.** The control that did not exist until now. Resuming the newest
+conversation is right for "close the tab and come back" and wrong for "drop
+this thread", and with no way to drop one, a stale detail followed you around
+for good — which is exactly what happened during Phase 11 testing, where the
+model kept answering out of a thread that had drifted.
+
 ## Plugins (Phase 12)
 
 Drop a `.py` file into `plugins/` and restart. It becomes a tool the model can

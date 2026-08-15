@@ -475,6 +475,7 @@ def test_websocket_asks_before_running_a_destructive_tool(client):
     test_client, tools = client
 
     with test_client.websocket_connect("/ws/chat") as ws:
+        assert ws.receive_json()["type"] == "conversation"  # sent on connect
         ws.send_text("delete my notes")
 
         frame = ws.receive_json()
@@ -489,6 +490,7 @@ def test_websocket_confirm_actually_runs_it(client):
     test_client, tools = client
 
     with test_client.websocket_connect("/ws/chat") as ws:
+        assert ws.receive_json()["type"] == "conversation"  # sent on connect
         ws.send_text("delete my notes")
         confirmation = ws.receive_json()
         ws.receive_json()  # done
@@ -507,6 +509,7 @@ def test_websocket_cancel_means_it_never_runs(client):
     test_client, tools = client
 
     with test_client.websocket_connect("/ws/chat") as ws:
+        assert ws.receive_json()["type"] == "conversation"  # sent on connect
         ws.send_text("delete my notes")
         confirmation = ws.receive_json()
         ws.receive_json()  # done

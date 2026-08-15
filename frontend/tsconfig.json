@@ -1,0 +1,32 @@
+{
+  // TypeScript is JavaScript with type annotations -- the same idea as
+  // Python's type hints, with one important difference: these are CHECKED.
+  // `npm run build` fails on a type error, so a typo in a frame field is
+  // caught before the app runs rather than becoming `undefined` on screen.
+  //
+  // The types are erased at build time. The browser only ever sees JavaScript.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+
+    // Vite compiles the files; tsc only type-checks them.
+    "noEmit": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+
+    // strict turns on every check, most usefully strictNullChecks: a value
+    // that might be null must be handled before it is used. Off by default
+    // for historical reasons; there is no good argument for leaving it off
+    // in a new project.
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src", "vite.config.ts"]
+}
