@@ -17,6 +17,7 @@ turn.
 
 import json
 import logging
+import re
 
 from pydantic import BaseModel, ValidationError
 
@@ -35,6 +36,33 @@ MAX_FACTS_PER_TURN = 8
 class ExtractedFact(BaseModel):
     content: str
     kind: str = "other"
+
+
+# A \uXXXX sequence that survived JSON decoding, meaning it arrived
+# double-escaped.
+_STRAY_ESCAPE = re.compile(r"\\u([0-9a-fA-F]{4})")
+
+
+def _decode_stray_escapes(text: str) -> str:
+    """
+    Fix escape sequences the model double-escaped.
+
+    Found in the real fact store: "The user\\u2019s favourite tea is oolong."
+    was stored with those eight characters literally in it, and had been
+    going into every prompt since.
+
+    json.loads already decodes \\u2019 into a right single quote correctly.
+    Getting the literal back means the model emitted \\\\u2019 -- escaping
+    its own escape -- so the parser faithfully produced exactly what was
+    sent. The bug is upstream, in the model, and this is the repair.
+
+    HONEST TRADEOFF: a fact genuinely *about* an escape sequence -- "the
+    code uses \\u0041 for A" -- is mangled by this. That is judged the
+    better failure. Facts are sentences about the user, escape sequences in
+    them are almost always this bug, and the alternative is visible
+    corruption in every prompt forever.
+    """
+    return _STRAY_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), text)
 
 
 def parse_facts(raw: str) -> list[ExtractedFact]:
@@ -74,7 +102,9 @@ def parse_facts(raw: str) -> list[ExtractedFact]:
             fact = ExtractedFact(**item)
         except ValidationError:
             continue
-        if not fact.content.strip():
+
+        fact.content = _decode_stray_escapes(fact.content).strip()
+        if not fact.content:
             continue
         # Clamp to a known category so an invented one can't leak into the
         # database and quietly break later filtering.

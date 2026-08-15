@@ -22,6 +22,31 @@ def test_parses_a_clean_json_array():
     assert facts[0].kind == "identity"
 
 
+def test_a_double_escaped_sequence_is_repaired():
+    r"""
+    Regression test for a fact found in the real store:
+
+        The user’s favourite tea is oolong.
+
+    with those eight characters stored literally, and going into every
+    prompt since. json.loads decodes ’ correctly, so getting the
+    literal back means the model emitted \\u2019 -- escaping its own escape.
+    """
+    raw = r'[{"content": "The user\\u2019s favourite tea is oolong.", "kind": "preference"}]'
+
+    facts = parse_facts(raw)
+
+    assert facts[0].content == "The user’s favourite tea is oolong."
+    assert "\\u" not in facts[0].content
+
+
+def test_a_normally_escaped_sequence_is_untouched():
+    """The common case must not be double-decoded into something else."""
+    raw = r'[{"content": "The user’s cat is called Bit"}]'
+
+    assert parse_facts(raw)[0].content == "The user’s cat is called Bit"
+
+
 def test_survives_markdown_fences_and_preamble():
     """Exactly what small local models actually return."""
     raw = 'Sure! Here is the JSON:\n```json\n[{"content": "The user likes tea"}]\n```\nHope that helps!'
