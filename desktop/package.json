@@ -1,0 +1,17 @@
+{
+  "name": "jarvis-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Desktop shell for JARVIS",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "devDependencies": {
+    "electron": "^43.4.0"
+  },
+  "allowScripts": {
+    "electron": true
+  }
+}

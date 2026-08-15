@@ -14,10 +14,11 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.deps import get_memory_store, get_scheduler, get_watcher_service
 from app.api.router import api_router
-from app.config import settings
+from app.config import PROJECT_ROOT, settings
 from app.db.session import SessionLocal
 from app.errors import register_exception_handlers
 from app.logging_config import setup_logging
@@ -128,3 +129,40 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.middleware("http")(log_requests)
 register_exception_handlers(app)
 app.include_router(api_router)
+
+
+def _serve_built_frontend() -> None:
+    """
+    Serve frontend/dist, if it has been built.
+
+    WHY THE BACKEND SERVES THE UI RATHER THAN ELECTRON LOADING FILES.
+
+    The frontend deliberately contains no host and no port anywhere: it
+    fetches "/settings" and opens a socket at "/ws/chat". In development
+    Vite proxies those to this server. Loading the same files from a
+    file:// URL in Electron would resolve them against the filesystem
+    instead, and every one would fail.
+
+    Serving them from here means the UI and the API share an origin in
+    production exactly as they appear to in development, so the same code
+    works in both with no build-time switch and no baked-in address.
+
+    MOUNTED LAST, AND THAT IS LOAD-BEARING. A mount at "/" matches
+    everything, so it has to come after api_router or it would swallow
+    /tools, /settings and the WebSocket. FastAPI checks routes in the order
+    they were added.
+
+    html=True makes it serve index.html for "/", which is what a single
+    page app needs.
+    """
+    dist = PROJECT_ROOT / "frontend" / "dist"
+    if not (dist / "index.html").exists():
+        # Normal in development, where Vite serves the UI on its own port.
+        logger.info("No built frontend at %s -- API only", dist)
+        return
+
+    app.mount("/", StaticFiles(directory=dist, html=True), name="ui")
+    logger.info("Serving the built frontend from %s", dist)
+
+
+_serve_built_frontend()

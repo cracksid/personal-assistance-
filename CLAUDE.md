@@ -382,6 +382,38 @@ three facts extracted from a directory listing llama3.2 had HALLUCINATED
 ("File 1 is file1.txt") had been stored as durable memory and were being
 fed into every later prompt.
 
-Next is Phase 14 (Electron desktop wrapper).
+Phase 14 (Electron) complete: desktop/ starts the Python backend itself,
+waits for /health, and opens a window. Closing hides to the tray so the
+scheduler keeps running; quit is deliberate, from the tray menu.
+
+THE BACKEND SERVES THE BUILT UI (StaticFiles mount on frontend/dist), and
+Electron loads http://127.0.0.1:8000 rather than a file:// URL. The
+frontend contains no host or port anywhere -- it fetches /settings and
+opens /ws/chat -- so from file:// every one of those resolves against the
+filesystem and fails. Serving from the backend gives one origin in
+production exactly as the Vite proxy does in development, so the same code
+works in both.
+
+The mount is added AFTER api_router and that ordering is load-bearing: a
+mount at "/" matches everything, so the other order returns index.html for
+/health and the WebSocket. There is a test for it.
+
+Renderer security is not optional here: nodeIntegration off, contextIsolation
+and sandbox on, and a preload exposing two constants. Since Phase 10 this
+assistant fetches arbitrary pages and renders what it finds, so the
+renderer is untrusted in practice. Links open in the real browser. There is
+deliberately NO UI-to-filesystem bridge -- the filesystem tools already go
+through the gate, and a second path would be the "two paths to execution,
+one ungated" failure the gate exists to prevent.
+
+Quitting runs taskkill /T on Windows. Killing uvicorn's parent alone leaves
+children holding port 8000 -- the orphaned process that served a stale
+frontend for hours during Phase 13.
+
+Electron was bumped 40 -> 43 during the phase: 40.x carries a high-severity
+advisory (GHSA-9f4c-93c8-jc8g, sandboxed iframe bypassing allow-popups).
+npm audit reports 0 vulnerabilities.
+
+Next is Phase 15 (testing: coverage pass).
 
 Update this line at the end of every phase.

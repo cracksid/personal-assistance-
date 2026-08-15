@@ -266,6 +266,53 @@ this thread", and with no way to drop one, a stale detail followed you around
 for good — which is exactly what happened during Phase 11 testing, where the
 model kept answering out of a thread that had drifted.
 
+## The desktop app (Phase 14)
+
+One command, one window, no terminals:
+
+```powershell
+cd frontend && npm run build     # once, and after any UI change
+cd ..\desktop && npm install     # once
+npm start
+```
+
+Electron starts the Python backend itself, waits for `/health` to answer,
+then opens a window pointed at it. Closing the window **hides to the tray**
+rather than quitting, so reminders and scheduled tasks keep running — which
+is the entire point of them. Quit deliberately from the tray menu.
+
+**The backend serves the UI, rather than Electron loading files.** The
+frontend contains no host or port anywhere: it fetches `/settings` and opens
+`/ws/chat`. From a `file://` URL those resolve against the filesystem and
+every one fails. FastAPI serves `frontend/dist`, so the UI and API share an
+origin in production exactly as the Vite proxy makes them appear to in
+development — the same code, with no build-time switch and no baked-in
+address.
+
+That mount is added **after** the API routes, deliberately: a mount at `/`
+matches everything, so the other order would swallow `/tools`, `/settings`
+and the WebSocket, and every request would return the HTML page. There's a
+test for it.
+
+**The renderer gets no Node.** `nodeIntegration: false`,
+`contextIsolation: true`, `sandbox: true`, and a preload script that exposes
+two constants and nothing else. This matters more here than in most Electron
+apps: since Phase 10 JARVIS fetches arbitrary web pages and puts what it
+finds on screen, so the renderer is treated as untrusted because in effect it
+is. Links open in your real browser rather than a second Electron window
+nobody audited.
+
+There is deliberately **no bridge from the UI to the filesystem**. JARVIS
+already has filesystem tools and they go through the confirmation gate and
+the audit log. A second path straight from the window to the disk would be
+exactly the "two paths to execution, one of them ungated" failure the gate
+exists to prevent.
+
+**Quitting kills the whole process tree.** On Windows, killing uvicorn's
+parent leaves its children holding port 8000 — the exact orphaned-process
+problem that had a stale server quietly answering a browser for hours during
+Phase 13. `taskkill /T` takes the tree.
+
 ## Settings and memory (Phase 13b)
 
 `⚙ CONFIG` in the header opens a panel with two tabs.
