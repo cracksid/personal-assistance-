@@ -93,7 +93,11 @@ export default function App() {
 
       {status === "closed" && (
         <div className="banner">
-          CONNECTION LOST — is the backend running? Reload to reconnect.
+          <span>CONNECTION LOST — is the backend running?</span>
+          {/* A button rather than "press F5", because in the Electron shell
+              there is no F5: the menu bar is hidden and there is no reload
+              control. reload() works in both a browser tab and a window. */}
+          <button onClick={() => window.location.reload()}>RETRY</button>
         </div>
       )}
 

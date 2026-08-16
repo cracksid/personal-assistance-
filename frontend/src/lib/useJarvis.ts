@@ -44,6 +44,16 @@ import { Entry, Frame, Status, nextId } from "./protocol";
  * server serves both. window.location supplies the rest, and swapping ws://
  * for wss:// keeps it correct if this is ever served over HTTPS.
  */
+/**
+ * How many times to retry before showing the connection as dead.
+ *
+ * With the backoff below this works out at roughly two minutes of trying,
+ * which comfortably covers a backend restart and stops well short of
+ * retrying forever into a machine that has gone to sleep.
+ */
+const MAX_RECONNECT_ATTEMPTS = 10;
+const MAX_RECONNECT_DELAY_MS = 15_000;
+
 function socketUrl(): string {
   const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${scheme}//${window.location.host}/ws/chat`;
@@ -180,36 +190,75 @@ export function useJarvis() {
     // component once, on purpose, to surface missing cleanup. Without the
     // cleanup below that would leave a second live socket receiving every
     // reminder -- so this flag ignores frames from a socket already torn
-    // down.
+    // down, and stops a pending reconnect from firing into nothing.
     let disposed = false;
-    const socket = new WebSocket(socketUrl());
-    socketRef.current = socket;
+    let socket: WebSocket | null = null;
+    let retryTimer: number | undefined;
+    let attempt = 0;
 
-    socket.onopen = () => {
-      if (!disposed) setStatus("open");
-    };
-
-    socket.onmessage = (event) => {
+    /**
+     * RECONNECTION EXISTS BECAUSE OF THE DESKTOP APP.
+     *
+     * In a browser, a dropped socket is survivable: the banner says so and
+     * you press F5. In the Electron shell there is no F5 -- the menu bar is
+     * hidden and there is no reload control -- so a single dropped
+     * connection left the window permanently dead until the app was
+     * restarted. Observed live: connected at 01:00, dropped at 01:14 while
+     * the backend was still perfectly healthy, and never came back.
+     *
+     * Backoff rather than a tight retry loop: the usual reason for a drop
+     * is the backend restarting, which takes a few seconds, and hammering
+     * it while it boots achieves nothing.
+     */
+    const connect = () => {
       if (disposed) return;
-      try {
-        handleFrame(JSON.parse(event.data) as Frame);
-      } catch {
-        // A malformed frame is a bug on the server, not something the user
-        // can act on. Better to drop it than to blank the screen.
-        console.warn("Ignoring an unparseable frame", event.data);
-      }
+
+      socket = new WebSocket(socketUrl());
+      socketRef.current = socket;
+
+      socket.onopen = () => {
+        if (disposed) return;
+        attempt = 0; // a good connection resets the backoff
+        setStatus("open");
+      };
+
+      socket.onmessage = (event) => {
+        if (disposed) return;
+        try {
+          handleFrame(JSON.parse(event.data) as Frame);
+        } catch {
+          // A malformed frame is a bug on the server, not something the
+          // user can act on. Better to drop it than to blank the screen.
+          console.warn("Ignoring an unparseable frame", event.data);
+        }
+      };
+
+      socket.onclose = () => {
+        if (disposed) return;
+        setBusy(false);
+
+        attempt += 1;
+        if (attempt > MAX_RECONNECT_ATTEMPTS) {
+          // Given up. "closed" is what turns the reactor red and shows the
+          // banner -- a distinct state from "trying", so a brief blip does
+          // not look like a dead app and a dead app does not look like a
+          // blip.
+          setStatus("closed");
+          return;
+        }
+
+        setStatus("connecting");
+        const delay = Math.min(1000 * 2 ** (attempt - 1), MAX_RECONNECT_DELAY_MS);
+        retryTimer = window.setTimeout(connect, delay);
+      };
     };
 
-    socket.onclose = () => {
-      if (!disposed) {
-        setStatus("closed");
-        setBusy(false);
-      }
-    };
+    connect();
 
     return () => {
       disposed = true;
-      socket.close();
+      window.clearTimeout(retryTimer);
+      socket?.close();
     };
   }, [handleFrame]);
 
