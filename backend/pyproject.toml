@@ -1,0 +1,52 @@
+# Test and coverage configuration.
+#
+# Until Phase 15 this project had none: pytest ran on defaults and coverage
+# was not measured at all. Putting the settings here rather than in the
+# command line means "how do I run the tests" has one answer -- `pytest` --
+# and the choices below are written down instead of remembered.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Show which test is running, and the reason for every skip. A silently
+# skipped test is worse than a missing one: it looks like coverage.
+addopts = "-q -ra"
+
+[tool.coverage.run]
+source = ["app"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+# WHY THE FLOOR IS 80 AND NOT 100.
+#
+# It is a ratchet against regression, not a target to chase. The number is
+# set just under where the suite actually sits, so a change that drops
+# coverage noticeably fails, while ordinary work is not blocked by a
+# percentage.
+#
+# Aiming at 100 would mean writing tests for the provider adapters that
+# wrap faster-whisper, Piper and onnxruntime -- and those tests would
+# mostly assert that the mocks behave the way the mocks were written to
+# behave. That is coverage without verification, which is worse than a
+# visible gap because it looks like safety.
+#
+# Worth remembering what this number cannot tell you: every serious bug
+# found in this project so far lived in code the suite already executed.
+# Tests writing to the real database, chat resuming a scheduled task's
+# thread, a failed tool rendering as a blank line, a fact stored with a
+# broken escape, a socket that never reconnected -- all in covered code,
+# all found by using the thing. Coverage shows what is never run. It says
+# nothing about whether what runs is right.
+fail_under = 80
+
+exclude_also = [
+    # Lines that only exist for type checkers. `if TYPE_CHECKING:` blocks
+    # never execute at runtime, so counting them as misses is noise.
+    "if TYPE_CHECKING:",
+    # Defensive branches that only fire when something outside the process
+    # misbehaves, and which are not worth contorting a test to reach.
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "except ImportError:",
+]

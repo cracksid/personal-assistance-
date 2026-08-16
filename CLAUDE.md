@@ -414,6 +414,44 @@ Electron was bumped 40 -> 43 during the phase: 40.x carries a high-severity
 advisory (GHSA-9f4c-93c8-jc8g, sandboxed iframe bypassing allow-popups).
 npm audit reports 0 vulnerabilities.
 
-Next is Phase 15 (testing: coverage pass).
+Phase 15 (testing pass) complete: 299 -> 338 tests, coverage measured for
+the first time at 83% and now 86%, with pytest and coverage settings in
+backend/pyproject.toml (there was no pytest config at all before) and a
+fail_under=80 ratchet.
+
+THE POINT OF THE PHASE WAS NOT THE NUMBER. Every serious bug found in this
+project so far lived in code the suite already executed -- tests writing to
+the real jarvis.db, chat resuming a scheduled task's thread, a failed tool
+rendering blank, a double-escaped fact, a socket that never reconnected.
+Coverage shows what is never run; it says nothing about whether what runs
+is right. That is written into pyproject.toml so the next person does not
+mistake 86% for safety.
+
+What it WAS good for: pointing at genuinely unexercised logic. The two
+lowest files were the provider adapters (anthropic 25%, ollama 54%) -- the
+message reshaping between JARVIS's neutral format and each vendor's wire
+format, which is the whole reason providers sit behind an ABC. Anthropic
+groups tool results as tool_result blocks inside a following USER message;
+Ollama makes them their own role and gives no call ids, so the adapter
+mints them. None of it needs a network, and none of it was tested.
+
+Writing those tests found a latent bug: stream_chat checked `done` BEFORE
+reading the frame's content, so a build that put the last token in the done
+frame would silently drop the final word of every reply. Harmless against
+today's Ollama, which sends empty content there -- which is exactly what
+makes it the kind of thing that surfaces years later.
+
+Also added: every factory's unknown-name path (parametrised across all
+five), and the filesystem tools' refusal branches, which matter because
+those messages are read by the MODEL -- a clear reason lets it correct
+itself, a vague one makes it guess.
+
+Deliberately NOT chased: the adapters wrapping faster-whisper, Piper,
+onnxruntime and the vision APIs sit at 32-45%. Testing them means faking
+those libraries, and the tests would mostly assert that the mocks behave as
+written. Coverage without verification is worse than a visible gap because
+it looks like safety.
+
+Next is Phase 16 (Docker, optional -- needs WSL2 on Windows).
 
 Update this line at the end of every phase.

@@ -1,3 +1,10 @@
 # Dev/test-only dependencies. Install on top of requirements.txt.
 -r requirements.txt
 pytest==8.3.4
+
+# Coverage (Phase 15). Run it with:
+#   python -m pytest --cov
+# The settings -- what is measured, what is excluded and the floor -- live
+# in pyproject.toml rather than on the command line.
+pytest-cov==7.1.0
+coverage==7.15.4

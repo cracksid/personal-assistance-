@@ -229,11 +229,20 @@ class OllamaProvider(LLMProvider):
                         if not line.strip():
                             continue
                         data = json.loads(line)
-                        if data.get("done"):
-                            break
+
+                        # Read the content BEFORE checking done, not after.
+                        # Ollama's final frame normally carries empty content
+                        # and timing stats, so breaking first loses nothing
+                        # today -- but it makes the adapter depend on that
+                        # staying true, and a build that put the last token
+                        # in the done frame would silently drop the final
+                        # word of every reply. Cheap to be immune to.
                         chunk = data.get("message", {}).get("content", "")
                         if chunk:
                             yield chunk
+
+                        if data.get("done"):
+                            break
 
         except httpx.ConnectError as exc:
             raise LLMProviderError(
