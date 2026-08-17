@@ -452,6 +452,49 @@ those libraries, and the tests would mostly assert that the mocks behave as
 written. Coverage without verification is worse than a visible gap because
 it looks like safety.
 
-Next is Phase 16 (Docker, optional -- needs WSL2 on Windows).
+Phase 19 (security review) done ahead of 16-18, which were judged lower
+value: Docker and deployment fit a hosted service, and this is a desktop app
+that needs a microphone, screen capture and a local Ollama.
+
+The review ATTACKED the guarantees rather than reading the code, and found
+two real holes. Both looked correct on the page; neither would have been
+found by re-reading. Full write-up in docs/security-review.md.
+
+FINDING 1 (high, fixed): SSRF via redirect. fetch_url called safe_url on
+the URL it was given, then let httpx follow redirects anywhere. A page
+JARVIS was asked to read could answer 302 -> http://127.0.0.1:8000 and have
+JARVIS fetch its own API, the router, or cloud metadata -- the exact three
+targets urls.py names as its reason for existing. Worse, the result was
+labelled "Fetched from <the public URL>", so the provenance line lied.
+Fixed by following redirects manually, re-running safe_url on every hop,
+capping at 5, and reporting the FINAL url.
+
+FINDING 2 (high, fixed): deny-list bypass via Windows filename spellings.
+The deny-list compares component names, and Windows accepts several
+spellings of one file. '.env.' (trailing dot) and '.env::$DATA' both walked
+past it while the OS opened the real .env -- so read_file(".env.") returned
+ANTHROPIC_API_KEY, from a tool that needs no confirmation. Proven against a
+real file, not theorised. Fixed by normalising each component (drop the
+stream suffix, strip trailing dots and spaces, lowercase) and refusing
+alternate data streams outright.
+
+Attacked and held: filesystem containment (traversal, UNC, \\?\ device
+paths, drive-relative, ~), the URL guard against 15 evasions (IPv6-mapped,
+decimal/octal/hex IPs, credentials-in-URL, file://, gopher://), secret
+masking through every accidental path, the settings allow-list, the
+confirmation gate's replay/expiry/unattended rules, plugin name shadowing,
+and the Electron renderer.
+
+Accepted and documented: no auth (bound to 127.0.0.1, single user), no
+plugin sandbox, prompt injection mitigated by the gate rather than solved
+by the labelling, audit arguments stored verbatim, and FS_ROOT defaulting
+to the whole home directory.
+
+352 tests, 86% coverage.
+
+Remaining: Phase 16 (Docker) and 17 (deployment) -- both optional and a
+poor fit; Phase 18 (optimization); Phase 20 (final docs). Also unbuilt:
+voice is fully implemented and tested but has no control in the UI, so it
+can only be reached with curl.
 
 Update this line at the end of every phase.

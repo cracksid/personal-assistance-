@@ -80,7 +80,30 @@ def safe_resolve(raw_path: str) -> Path:
     if not raw_path or not raw_path.strip():
         raise ToolError("No path was given.")
 
-    candidate = Path(raw_path.strip()).expanduser()
+    if "\x00" in raw_path:
+        # Python raises on this at the filesystem call anyway, but the
+        # message is an unhelpful ValueError from deep inside pathlib.
+        raise ToolError("That path contains a null byte, which is not a real path.")
+
+    text = raw_path.strip()
+
+    # Refuse alternate data streams outright, rather than only normalising
+    # them for the deny-list. An ADS is a second, invisible file hidden
+    # inside a visible one -- "notes.txt:secret" does not appear in a
+    # directory listing, in Explorer, or in anything JARVIS shows the user.
+    # There is no legitimate reason for an assistant to read or write one,
+    # and "content the user cannot see" is a bad thing to hand a model that
+    # also reads pages written by strangers.
+    #
+    # The drive letter is the one legitimate colon, and it always sits at
+    # position 1 ("C:\\..."), so anything further along is a stream.
+    if ":" in text[2:]:
+        raise ToolError(
+            f"Refusing to touch {raw_path!r}: ':' names an alternate data "
+            "stream, which is hidden from every normal view of the disk."
+        )
+
+    candidate = Path(text).expanduser()
 
     # A relative path is interpreted against the sandbox root, not the
     # process's working directory -- which the caller cannot see and which
@@ -109,6 +132,37 @@ def safe_resolve(raw_path: str) -> Path:
     return resolved
 
 
+def _normalise_component(part: str) -> str:
+    """
+    Reduce a path component to the name Windows will actually open.
+
+    THIS FUNCTION EXISTS BECAUSE OF A REAL BYPASS, found by trying it.
+
+    The deny-list compares names, and Windows accepts several spellings of
+    one file. Reading `.env.` -- with a trailing dot -- opened the real
+    `.env`, because the filesystem ignores trailing dots and spaces, while
+    the deny-list saw a string that was not on it. The API key was one
+    request away. Measured, not theorised:
+
+        '_sec_probe.txt'   -> 'REAL CONTENTS'
+        '_sec_probe.txt.'  -> 'REAL CONTENTS'
+        '_sec_probe.txt '  -> 'REAL CONTENTS'
+
+    Alternate data streams are the same trick in another spelling:
+    `.env::$DATA` is the file's own contents, and `.env:x` is a hidden
+    stream attached to it.
+
+    Normalising before comparing is the fix. Comparing raw strings against
+    a list of names cannot work when the operating system does not compare
+    names that way.
+    """
+    # "name:stream" and "name::$DATA" are streams of "name". Splitting takes
+    # the file itself, which is what the deny-list should judge.
+    part = part.split(":", 1)[0]
+    # Windows silently drops trailing dots and spaces.
+    return part.rstrip(". ").lower()
+
+
 def _is_inside(path: Path, root: Path) -> bool:
     """
     Is `path` within `root`?
@@ -123,9 +177,15 @@ def _is_inside(path: Path, root: Path) -> bool:
 
 
 def _denied_component(path: Path) -> str | None:
-    """Return the first deny-listed component of `path`, if any."""
+    """
+    Return the first deny-listed component of `path`, if any.
+
+    Each component is normalised first -- see _normalise_component. Without
+    that, `.env.` and `.env:x` both walked straight past this check while
+    Windows opened the real `.env`.
+    """
     for part in path.parts:
-        if part.lower() in DENIED_NAMES:
+        if _normalise_component(part) in DENIED_NAMES:
             return part
     return None
 

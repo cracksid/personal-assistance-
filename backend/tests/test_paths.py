@@ -123,6 +123,65 @@ def test_sensitive_paths_inside_the_sandbox_are_still_refused(
         safe_resolve(path)
 
 
+@pytest.mark.parametrize(
+    "spelling",
+    [
+        ".env.",
+        ".env ",
+        ".env...",
+        "projects/jarvis/.env.",
+    ],
+)
+def test_windows_spellings_of_a_denied_name_are_refused(sandbox: Path, spelling: str):
+    """
+    REGRESSION TEST FOR A REAL BYPASS, found in the Phase 19 review by
+    trying it rather than by reading the code.
+
+    The deny-list compares names. Windows accepts several spellings of one
+    file: it silently ignores trailing dots and spaces, so `.env.` opened
+    the real `.env` while this check saw a string that was not on the list.
+    The API key was one read_file away.
+
+    Proven at the time against a real file:
+
+        '_sec_probe.txt'   -> 'REAL CONTENTS'
+        '_sec_probe.txt.'  -> 'REAL CONTENTS'
+        '_sec_probe.txt '  -> 'REAL CONTENTS'
+    """
+    with pytest.raises(ToolError, match="credentials or"):
+        safe_resolve(spelling)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        ".env:x",
+        ".env::$DATA",
+        "notes.txt:hidden",
+        "notes.txt::$DATA",
+    ],
+)
+def test_alternate_data_streams_are_refused(sandbox: Path, path: str):
+    """
+    An ADS is a second, invisible file hidden inside a visible one. It does
+    not appear in a directory listing, in Explorer, or in anything JARVIS
+    shows the user.
+
+    Refused outright rather than merely normalised for the deny-list:
+    `.env::$DATA` IS the file's contents under another name, and "content
+    the user cannot see" is a bad thing to hand a model that also reads
+    pages written by strangers.
+    """
+    with pytest.raises(ToolError, match="alternate data stream"):
+        safe_resolve(path)
+
+
+def test_a_null_byte_is_refused_with_a_readable_message(sandbox: Path):
+    """Python raises deep inside pathlib otherwise, which tells nobody anything."""
+    with pytest.raises(ToolError, match="null byte"):
+        safe_resolve("notes.txt\x00.png")
+
+
 def test_the_deny_list_is_case_insensitive(sandbox: Path):
     """
     Windows filesystems are case-insensitive, so ~/.SSH and ~/.ssh are the

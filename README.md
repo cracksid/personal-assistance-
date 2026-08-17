@@ -290,6 +290,42 @@ this thread", and with no way to drop one, a stale detail followed you around
 for good — which is exactly what happened during Phase 11 testing, where the
 model kept answering out of a thread that had drifted.
 
+## Security review (Phase 19)
+
+A deliberate pass over everything that touches the outside world, written up
+in **[docs/security-review.md](docs/security-review.md)**.
+
+The method was to **attack it, not read it** — every guarantee got something
+written specifically to break it. Two attempts succeeded, and both are fixed
+with regression tests. Both looked correct on the page, which is the point:
+re-reading the code would not have found either.
+
+**SSRF via redirect.** `fetch_url` checked the URL it was given, then let
+httpx follow redirects anywhere. A page JARVIS was asked to read could reply
+`302 Location: http://127.0.0.1:8000/...` and have JARVIS fetch its own API,
+the router's admin page, or cloud metadata — the exact three targets the guard
+exists to prevent. The result was even labelled "Fetched from
+https://example.com", so the provenance line lied. Redirects are now followed
+by hand with the guard re-run on every hop.
+
+**Deny-list bypass via Windows filename spellings.** `read_file(".env.")` —
+with a trailing dot — returned the real `.env`, **including the API key**,
+from a tool that needs no confirmation. Windows ignores trailing dots and
+spaces, and `.env::$DATA` names the same file again. The deny-list compared
+raw names. Components are now normalised before comparison, and alternate data
+streams are refused outright.
+
+**What held up:** filesystem containment against traversal, UNC shares and
+`\\?\` device paths; the URL guard against fifteen evasions including
+IPv6-mapped addresses and integer-encoded IPs; secret masking through every
+accidental path; the settings allow-list; the confirmation gate's replay,
+expiry and unattended rules; plugin name shadowing; and the Electron renderer.
+
+**Accepted and documented rather than fixed:** no authentication (bound to
+`127.0.0.1`, single user), no plugin sandbox, prompt injection mitigated by
+the gate rather than solved by the labelling, and `FS_ROOT` defaulting to the
+whole home directory.
+
 ## The desktop app (Phase 14)
 
 One command, one window, no terminals:

@@ -153,6 +153,117 @@ async def test_fetch_refuses_an_internal_url_before_any_request(db_session):
         await tool.run(FetchInput(url="http://127.0.0.1:8000/tools"), context(db_session))
 
 
+# --- redirects: the SSRF hole found in the Phase 19 review -----------------
+
+
+def redirecting_to(location: str, then_html: str = "<html><p>secret</p></html>"):
+    """A server that answers the first request with a 302, then a page."""
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        if len(seen) == 1:
+            return httpx.Response(302, headers={"Location": location})
+        return httpx.Response(200, html=then_html)
+
+    return httpx.MockTransport(handler), seen
+
+
+@pytest.mark.anyio
+async def test_a_redirect_to_an_internal_address_is_refused(db_session):
+    """
+    THE regression test for a real hole, found by trying it rather than by
+    reading the code.
+
+    safe_url checked the URL it was given, and httpx -- with
+    follow_redirects=True -- then went wherever it was told. A public page
+    JARVIS was asked to read could answer 302 -> http://127.0.0.1:8000 and
+    have JARVIS fetch its own API, the router's admin page, or cloud
+    instance metadata. A guard that runs once, on the first URL, is not a
+    guard.
+    """
+    transport, seen = redirecting_to("http://127.0.0.1:8000/admin")
+    tool = FetchUrl(transport=transport)
+
+    result = await tool.run(
+        FetchInput(url="https://example.com/page"), context(db_session)
+    )
+
+    assert result.ok is False
+    assert "inside this machine" in result.error
+    # And the internal host was never contacted at all.
+    assert all("127.0.0.1" not in url for url in seen)
+
+
+@pytest.mark.anyio
+async def test_a_redirect_to_the_local_network_is_refused(db_session):
+    """192.168.x is the router, the NAS, the printer -- none of it public."""
+    transport, seen = redirecting_to("http://192.168.1.1/")
+    tool = FetchUrl(transport=transport)
+
+    result = await tool.run(
+        FetchInput(url="https://example.com/page"), context(db_session)
+    )
+
+    assert result.ok is False
+    assert all("192.168" not in url for url in seen)
+
+
+@pytest.mark.anyio
+async def test_a_relative_redirect_is_resolved_before_being_checked(db_session):
+    """
+    A bare "/admin" is a legal Location and must be resolved against the
+    current URL first -- otherwise it does not parse as a host and the
+    guard would be checking nothing at all.
+    """
+    transport, seen = redirecting_to("/somewhere-else")
+    tool = FetchUrl(transport=transport)
+
+    result = await tool.run(
+        FetchInput(url="https://example.com/page"), context(db_session)
+    )
+
+    assert result.ok  # same public host, so this one is allowed
+    assert seen[1] == "https://example.com/somewhere-else"
+
+
+@pytest.mark.anyio
+async def test_the_output_names_where_the_content_really_came_from(db_session):
+    """
+    The provenance line used to name the URL that was ASKED for, not the one
+    that answered. After a redirect that was simply untrue, and it is the
+    line the model uses to judge how much to trust what follows.
+    """
+    transport, _ = redirecting_to(
+        "https://www.example.com/real", then_html=ARTICLE
+    )
+    tool = FetchUrl(transport=transport)
+
+    result = await tool.run(
+        FetchInput(url="https://example.com/page"), context(db_session)
+    )
+
+    assert result.ok
+    assert "Fetched from https://www.example.com/real" in result.output
+
+
+@pytest.mark.anyio
+async def test_a_redirect_loop_gives_up(db_session):
+    """Otherwise two servers pointing at each other hang the turn."""
+
+    def loop(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"Location": "https://example.com/again"})
+
+    tool = FetchUrl(transport=httpx.MockTransport(loop))
+
+    result = await tool.run(
+        FetchInput(url="https://example.com/page"), context(db_session)
+    )
+
+    assert result.ok is False
+    assert "redirects" in result.error
+
+
 # --- searching -------------------------------------------------------------
 
 
