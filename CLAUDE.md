@@ -493,8 +493,25 @@ to the whole home directory.
 352 tests, 86% coverage.
 
 Remaining: Phase 16 (Docker) and 17 (deployment) -- both optional and a
-poor fit; Phase 18 (optimization); Phase 20 (final docs). Also unbuilt:
-voice is fully implemented and tested but has no control in the UI, so it
-can only be reached with curl.
+poor fit; Phase 18 (optimization); Phase 20 (final docs). Voice is now reachable from the UI: a hold-to-talk MIC button in the
+composer and a VOICE toggle for spoken replies.
+
+MediaRecorder captures audio and posts the bytes to /voice/transcribe --
+NOT the browser's SpeechRecognition API, which would send audio to Google
+and quietly undo the reason CLAUDE.md picked faster-whisper. Push-to-talk
+rather than a toggle, so there is no state where JARVIS is listening and
+the user has forgotten.
+
+The transcript FILLS THE COMPOSER instead of sending. Whisper mishears
+names and technical words, and a wrong sentence sent automatically is a
+wrong sentence acted on by an assistant holding filesystem tools.
+
+Electron needed setPermissionRequestHandler -- media only, and only for
+our own origin, since this window also renders text fetched from arbitrary
+sites.
+
+Verified by round trip: Piper spoke a sentence, Whisper transcribed the
+audio back, 75% word overlap (the misses were 'practise'/'practice' and
+'nine'/'9').
 
 Update this line at the end of every phase.

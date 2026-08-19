@@ -290,6 +290,48 @@ this thread", and with no way to drop one, a stale detail followed you around
 for good — which is exactly what happened during Phase 11 testing, where the
 model kept answering out of a thread that had drifted.
 
+## Voice in the UI (Phase 7 → finally reachable)
+
+Speech has worked since Phase 7 and had no control anywhere — the only way to
+reach it was `curl`. Now there is a **MIC** button in the composer and a
+**VOICE** toggle in the header.
+
+**Hold the button to talk, release to transcribe.** Push-to-talk rather than a
+toggle: holding makes the start and end unambiguous, and there is no state
+where JARVIS is listening and you have forgotten. Letting go is the same
+gesture as being finished.
+
+**The transcript fills the box; it does not send.** Whisper mishears names,
+technical words, anything said over a fan — and a wrong sentence sent
+automatically is a wrong sentence *acted on*, by an assistant holding
+filesystem tools. The box is focused, so confirming is one keystroke.
+
+**MediaRecorder, not the browser's speech API.** Chrome ships a
+SpeechRecognition API that would do this in ten lines — by sending your audio
+to Google. This project runs Whisper locally on purpose, and using the browser
+API would quietly undo that while looking simpler. The bytes go to JARVIS's
+own `/voice/transcribe`, and transcription happens on this machine.
+
+**Recording is unmistakable** — the button turns red and pulses. A live
+microphone nobody realises is on is the failure worth designing against.
+
+**The VOICE toggle speaks replies aloud**, through Piper, locally. Off by
+default: an assistant that starts talking unprompted is startling, and this
+one also delivers reminders and scheduled task results on its own. Speaking
+waits for the whole reply, because a sentence arrives as dozens of chunks.
+
+In the desktop app, Electron must approve microphone access too — granted for
+`media` only, and only to JARVIS's own origin. A blanket approval would hand
+the microphone to any page the model fetched and rendered.
+
+Verified end to end by speaking a sentence with Piper and feeding the audio
+straight back into Whisper:
+
+```
+spoke:  'Remind me to practise guitar at nine tonight.'
+heard:  'Remind me to practice guitar at 9 tonight.'
+```
+
 ## Security review (Phase 19)
 
 A deliberate pass over everything that touches the outside world, written up

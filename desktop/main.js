@@ -32,7 +32,7 @@
  * filesystem. The renderer is treated as untrusted, because in effect it is.
  */
 
-const { app, BrowserWindow, Menu, Tray, shell, dialog } = require("electron");
+const { app, BrowserWindow, Menu, Tray, shell, dialog, session } = require("electron");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -148,6 +148,23 @@ function createWindow() {
       sandbox: true,
     },
   });
+
+  // MICROPHONE PERMISSION.
+  //
+  // Electron denies media access by default, so without this the mic button
+  // fails silently in the desktop app while working fine in a browser.
+  //
+  // Granted only for "media", and only to our own origin. Everything else --
+  // geolocation, notifications, MIDI, and any request from a page that
+  // somehow is not ours -- is refused. Since Phase 10 this window renders
+  // text fetched from arbitrary sites, so a blanket `callback(true)` would
+  // hand those pages the microphone.
+  session.defaultSession.setPermissionRequestHandler(
+    (contents, permission, callback) => {
+      const fromUs = (contents.getURL() || "").startsWith(UI_URL);
+      callback(fromUs && permission === "media");
+    },
+  );
 
   window.loadURL(UI_URL);
 

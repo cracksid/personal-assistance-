@@ -38,13 +38,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Entry, Frame, Status, nextId } from "./protocol";
 
 /**
- * Relative, deliberately -- no host and no port anywhere in the app.
- *
- * In development Vite proxies this to 127.0.0.1:8000; in production the same
- * server serves both. window.location supplies the rest, and swapping ws://
- * for wss:// keeps it correct if this is ever served over HTTPS.
- */
-/**
  * How many times to retry before showing the connection as dead.
  *
  * With the backoff below this works out at roughly two minutes of trying,
@@ -54,6 +47,13 @@ import { Entry, Frame, Status, nextId } from "./protocol";
 const MAX_RECONNECT_ATTEMPTS = 10;
 const MAX_RECONNECT_DELAY_MS = 15_000;
 
+/**
+ * Relative, deliberately -- no host and no port anywhere in the app.
+ *
+ * In development Vite proxies this to 127.0.0.1:8000; in production the same
+ * server serves both. window.location supplies the rest, and swapping ws://
+ * for wss:// keeps it correct if this is ever served over HTTPS.
+ */
 function socketUrl(): string {
   const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${scheme}//${window.location.host}/ws/chat`;
@@ -64,6 +64,14 @@ export function useJarvis() {
   const [status, setStatus] = useState<Status>("connecting");
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // The assistant message that most recently FINISHED, with an id so a
+  // caller can tell a new reply from a re-render. Text-to-speech reads
+  // this: speaking has to wait for the whole reply, because a sentence
+  // arrives as dozens of chunks and Piper needs a complete one.
+  const [lastReply, setLastReply] = useState<{ id: string; text: string } | null>(
+    null,
+  );
 
   const socketRef = useRef<WebSocket | null>(null);
 
@@ -142,7 +150,14 @@ export function useJarvis() {
 
         case "done":
           streamingRef.current = false;
-          setEntries(closeStreaming);
+          setEntries((prev) => {
+            const closed = closeStreaming(prev);
+            const last = closed[closed.length - 1];
+            if (last && last.kind === "assistant" && last.text.trim()) {
+              setLastReply({ id: last.id, text: last.text });
+            }
+            return closed;
+          });
           setBusy(false);
           break;
 
@@ -310,6 +325,7 @@ export function useJarvis() {
     status,
     conversationId,
     busy,
+    lastReply,
     sendMessage,
     answerConfirmation,
     newConversation,
