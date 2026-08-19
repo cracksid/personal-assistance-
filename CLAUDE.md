@@ -537,4 +537,29 @@ True and describe_action names the RESOLVED app and shortcut.
 The /tools test asserting which tools are dangerous is an EXACT set on
 purpose -- adding a confirming tool should make someone come and say so.
 
+Phase 20 (final documentation) complete: docs/architecture.md written,
+and README.md given a front door -- what JARVIS is, what it does, a quick
+start, links to the three docs, and a contents list, since twenty phases of
+prepending had left it with no way in.
+
+architecture.md is the capstone for a codebase that is explicitly a
+teaching artifact. It covers the six tiers and why the downward-arrow rule
+holds (the voice client drives the whole system through the public API and
+imports nothing from backend/app -- if the layering were fictional that
+would have been impossible), the agent loop, the gate, each tier's job, and
+a decisions table naming what each choice was made INSTEAD of.
+
+The section worth keeping is "What the bugs taught": every serious bug in
+this project, what it was, and the lesson. All of them lived in code the
+suite already executed, and every one was found by using the thing. That is
+the most transferable content here, so it is written down rather than left
+in commit messages.
+
+THE PROJECT IS COMPLETE as a working assistant. 368 tests, 86% coverage.
+Phases 16 (Docker) and 17 (deployment) were deliberately skipped and should
+stay skipped unless the shape changes: they fit a hosted service, and this
+is a desktop app that needs a microphone, screen capture, a local Ollama
+and the user's own filesystem. Phase 18 (optimization) is unbuilt because
+nothing is measurably slow; revisit it with a measurement, not a hunch.
+
 Update this line at the end of every phase.
