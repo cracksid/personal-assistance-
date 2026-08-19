@@ -12,6 +12,7 @@ of thing, just a Tool that arrived from somewhere else.
 
 import logging
 
+from app.tools.apps import build_app_tools
 from app.tools.base import Tool
 from app.tools.builtin import build_builtin_tools
 from app.tools.filesystem import build_filesystem_tools
@@ -64,6 +65,7 @@ def load_builtin_tools() -> None:
         *build_reminder_tools(),
         *build_scheduled_task_tools(),
         *build_watcher_tools(),
+        *build_app_tools(),
     ]:
         register(tool)
     logger.info("Registered %s built-in tool(s)", len(_REGISTRY))

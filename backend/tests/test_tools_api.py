@@ -61,10 +61,21 @@ def invoke(client: TestClient, name: str, **arguments):
 
 
 def test_listing_tools_shows_which_ones_are_dangerous(client: TestClient):
+    """
+    An EXACT set, not a subset, on purpose. This is the inventory of
+    everything that can happen without being asked twice, so adding a tool
+    that needs approval should require someone to come here and say so
+    deliberately -- a failing test is the right way to be told.
+    """
     body = client.get("/tools").json()
 
     dangerous = {t["name"] for t in body["tools"] if t["requires_confirmation"]}
-    assert dangerous == {"write_file", "delete_file", "create_scheduled_task"}
+    assert dangerous == {
+        "write_file",
+        "delete_file",
+        "create_scheduled_task",
+        "open_app",
+    }
     # The caller is told where the boundary is, not left to guess.
     assert body["sandbox_root"]
 
