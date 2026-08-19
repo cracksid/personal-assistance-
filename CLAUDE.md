@@ -514,4 +514,27 @@ Verified by round trip: Piper spoke a sentence, Whisper transcribed the
 audio back, 75% word overlap (the misses were 'practise'/'practice' and
 'nine'/'9').
 
+App launching (open_app, list_apps) added after real use exposed the gap:
+asked to open File Explorer, llama3.2 emitted {"name": "shell.run",
+"parameters": {"command": "explorer"}} as TEXT -- a tool that does not
+exist, in a shape that must never exist.
+
+A tool taking a command line accepts every command line, and the gate
+cannot save it: the human approves a sentence, and "run: explorer" and
+"run: explorer & del /s /q C:\Users" look alike at a glance. Since Phase 10
+the proposed string is not reliably the model's own idea either.
+
+So open_app scans the Start Menu and the model picks WHICH entry. It cannot
+invent one, pass arguments, or reach anything not installed. No shell:
+os.startfile takes a resolved path, so there is no command string to inject
+into. Uninstallers and help pages are filtered out, exact names beat partial
+ones, ambiguity is returned rather than guessed. requires_confirmation is
+True and describe_action names the RESOLVED app and shortcut.
+
+139 launchable apps discovered on this machine; 'explorer' resolves to
+'File Explorer'.
+
+The /tools test asserting which tools are dangerous is an EXACT set on
+purpose -- adding a confirming tool should make someone come and say so.
+
 Update this line at the end of every phase.

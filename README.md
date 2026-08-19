@@ -290,6 +290,47 @@ this thread", and with no way to drop one, a stale detail followed you around
 for good — which is exactly what happened during Phase 11 testing, where the
 model kept answering out of a thread that had drifted.
 
+## Opening applications
+
+`open_app` starts an installed program by name, and `list_apps` shows what is
+available. On this machine that discovered 139 launchable entries.
+
+```
+> open file explorer
+  [CONFIRM?] Open the application 'File Explorer' (C:\...\File Explorer.lnk)
+  [TOOL open_app] Opened File Explorer.
+```
+
+**It takes a name, not a command — and that is the whole design.** This tool
+exists because a local model, asked to open File Explorer, proposed one that
+does not exist:
+
+```json
+{"name": "shell.run", "parameters": {"command": "explorer"}}
+```
+
+That shape is indefensible. A tool that accepts a command line accepts *every*
+command line, and the confirmation gate cannot rescue it: a human approves a
+sentence, and `run: explorer` and `run: explorer & del /s /q C:\Users` look
+equally reasonable at a glance. Since Phase 10 the model also reads pages
+written by strangers, so the string it proposes is not always its own idea.
+
+So this scans the Start Menu — a list of programs someone already chose to
+install — and the model picks **which one**. It cannot invent an entry, pass
+arguments, or reach a program that is not in the list. *The model picks from a
+menu; it does not write the order.*
+
+**No shell anywhere.** `os.startfile` hands a resolved path to the Windows file
+associations. There is no command string to parse, so there is nothing to
+inject into — no quoting bug, no `&`, no `|`.
+
+**Uninstallers and help pages are excluded**, so "open Brave" can never resolve
+to "Uninstall Brave". An exact name beats a partial one, and a genuinely
+ambiguous request comes back with the candidates rather than a guess.
+
+**It needs approval**, and the description names the *resolved* application and
+its shortcut, not what was asked for.
+
 ## Voice in the UI (Phase 7 → finally reachable)
 
 Speech has worked since Phase 7 and had no control anywhere — the only way to
